@@ -6,7 +6,8 @@ RUN apt-get update \
 	wget \
 	software-properties-common \
 	build-essential \
-	valgrind
+	valgrind \
+	python3
 
 RUN wget https://ftp.gnu.org/gnu/inetutils/inetutils-2.0.tar.gz \
 	&& tar -xf inetutils-2.0.tar.gz && cd inetutils-2.0 \

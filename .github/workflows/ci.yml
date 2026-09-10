@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, ci ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: ft_ping-ci
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Rebuilds the image every run, but layers (apt packages, inetutils
+      # build, llvm.sh) are restored from the GitHub Actions cache, so only
+      # the first run on a given Dockerfile is slow.
+      - name: Build CI image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: ${{ env.IMAGE_NAME }}:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Compile (make all)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            "${{ env.IMAGE_NAME }}:ci" \
+            make all
+
+      # greatest_parallel.sh runs each suite under valgrind, so this also
+      # doubles as a leak/UB check for the unit tests.
+      - name: Unit tests (make test)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            "${{ env.IMAGE_NAME }}:ci" \
+            make test
+
+      # Compares ft_ping against the inetutils ping built into the image
+      # (installed to /usr/bin/ping). Raw ICMP sockets need root, which is
+      # the default user in this image, so no extra --cap-add is needed.
+#      - name: Integration tests (ft_ping vs inetutils ping)
+#        run: |
+#          mkdir -p artifacts/integration
+#          docker run --rm \
+#            -v "${{ github.workspace }}:/workspace" -w /workspace \
+#            "${{ env.IMAGE_NAME }}:ci" \
+#            python3 test/integration/compare_ping.py \
+#              --ft-ping ./ft_ping \
+#              --ref-ping /usr/bin/ping \
+#              --external-host 1.1.1.1 \
+#              --out-dir artifacts/integration
+#
+#      - name: Upload integration artifacts
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: integration-results
+#          path: artifacts/integration
