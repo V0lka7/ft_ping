@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [ main, ci ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: ft_ping-ci
