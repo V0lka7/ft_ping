@@ -25,7 +25,7 @@ jobs:
       - name: Build CI image (cached)
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./docker
           file: ./docker/Dockerfile
           tags: ${{ env.IMAGE_NAME }}:ci
           load: true
