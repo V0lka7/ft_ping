@@ -4,6 +4,7 @@ RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive \
 	apt-get install --no-install-recommends --assume-yes \
 	wget \
+	netbase \
 	software-properties-common \
 	build-essential \
 	valgrind \
