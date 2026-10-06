@@ -5,9 +5,11 @@ RUN apt-get update \
 	apt-get install --no-install-recommends --assume-yes \
 	wget \
 	netbase \
+    tcpdump \
 	software-properties-common \
 	build-essential \
 	valgrind \
+    tmux \
 	python3
 
 COPY ./inetutils-2.0.tar.gz /

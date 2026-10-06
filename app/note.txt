@@ -3,7 +3,7 @@ PROJECT implementation#
 #######################==================================================================
 Options to implement:
 -v, --verbose              verbose output
-                 
+
 -?, --help                 give this help list
     --usage                give a short usage message
 
@@ -77,7 +77,7 @@ Ressources#
 /usr/include/x86_64-linux-gnu/sys/socket.h
 /usr/include/x86_64-linux-gnu/bits/socket.h
 
-https://www.rfc-editor.org/rfc/rfc792 ICMP ipv4 
+https://www.rfc-editor.org/rfc/rfc792 ICMP ipv4
 https://www.rfc-editor.org/rfc/rfc1071 checksum computing
 
 man sockaddr
@@ -201,7 +201,7 @@ struct icmphdr
     } frag;			/* path mtu discovery */
   } un;
 };
-sizeof icmphdr = 
+sizeof icmphdr =
 
 /usr/include/netinet/ip.h
 struct iphdr
@@ -227,6 +227,9 @@ struct iphdr
     /*The options start here. */
   };
   20bytes
+
+
+  hop hop hop pas oublier time.h
 
 -------------------------------------------------------------------------------
 https://www.rfc-editor.org/rfc/rfc792
@@ -306,18 +309,21 @@ while (i == 0) {
     ...
 }
 
-if i isn't modified into the while loop, compiler can 
+if i isn't modified into the while loop, compiler can
 optimize it to "true"
-So volatile will tell -> don't optimize this variable 
+So volatile will tell -> don't optimize this variable
 really usefull when i is modified in signal handler
 
 
-CREATE an executable tool which recv ICMP package on 127.0.0.1 and send 
-corrupt response
-nothing -> loss package
-echo reply
-address reply
-timestamp reply
+Ping response:
+- Destination Unreachable Message [Type 3] [Code: 0, 1, 2, 3, 4, 5]
+- Source Quench Message [Type 4] {deprecated RFC 6633}
+- Redirect Message [Type 5] [Code 0, 1, 2, 3]
+- Time Exceeded Message [Type 11] [Code: 0, 1]
+- Parameter Problem Message [Type 12] [Code 0]
+- Echo Reply Message [Type 0] [Code 0]
+- Timestamp Reply Message [Type 14] [Code 0]
+- Information Reply Message [16] {deprecated RFC 6918}
 
 -------------------------------------------------------------------------------
 Sur quoi joue les options de ping ?
@@ -339,3 +345,117 @@ ok donc ping de inetutils gere 3 type de requete
 *"Options valid for all request types"
 RUNTIME
 -c --cont=NUMBER
+
+
+sudo sysctl -w net.ipv4.icmp_echo_ignore_all=1
+[sudo] Mot de passe de jduval :
+net.ipv4.icmp_echo_ignore_all = 1
+
+
+----------------------------------------------------------------------------------------------
+chaque ligne correspond a 16 Bytes
+sudo tcpdump -i any -X icmp
+
+
+
+13:16:31.441538 lo    In  IP localhost > localhost: ICMP echo request, id 4, seq 0, length 64
+        0x0000:  4500 0054 c4dd 4000 4001 77c9 7f00 0001  E..T..@.@.w.....
+        0x0010:  7f00 0001 0800 c695 0004 0000 0fae e869  ...............i
+        0x0020:  0000 0000 b5bc 0600 0000 0000 0001 0203  ................
+        0x0030:  0405 0607 0809 0a0b 0c0d 0e0f 1011 1213  ................
+        0x0040:  1415 1617 1819 1a1b 1c1d 1e1f 2021 2223  .............!"#
+        0x0050:  2425 2627                                $%&'
+13:16:31.441545 lo    In  IP localhost > localhost: ICMP echo reply, id 4, seq 0, length 64
+        0x0000:  4500 0054 c4de 0000 4001 b7c8 7f00 0001  E..T....@.......
+        0x0010:  7f00 0001 0000 ce95 0004 0000 0fae e869  ...............i
+        0x0020:  0000 0000 b5bc 0600 0000 0000 0001 0203  ................
+        0x0030:  0405 0607 0809 0a0b 0c0d 0e0f 1011 1213  ................
+        0x0040:  1415 1617 1819 1a1b 1c1d 1e1f 2021 2223  .............!"#
+        0x0050:  2425 2627
+
+0x0000 - 0x0001: [4500] -> [0001] => IP Header
+0x0001 - 0x0001: [0800] -> [0000] => ICMP Header
+0x0001 - 0x0050: [0fae] -> [2627] => Payload
+----------------------------------------------------------------------------------------------
+
+
+
+OK OK Grosse étapes à faire
+
+// 0. Validate input
+1. Creer la socket icmp
+2. Creer le packet icmp
+3. Envoyer la requête icmp
+4. Ecouter si la socket est prête à être lu
+5. Lire ce qu'il y à sur la socket
+6. Ecrire sur la sortie standard
+7. Refaire 2.
+
+ping sortant vers google.com
+14:00:43.588049 enp0s3 Out IP 10.0.2.15 > tzpara-ap-in-f14.1e100.net: ICMP echo request, id 1, seq 0, length 64
+        0x0000:  [4500 0054 7ba0 4000 4001 ef72 0a00 020f  E..T{.@.@..r....
+        0x0010:  acd9 16ae] {0800 ecc4 0001 0000} (6b45 106a  ............kE.j
+        0x0020:  0000 0000 09f9 0800 0000 0000 0001 0203  ................
+        0x0030:  0405 0607 0809 0a0b 0c0d 0e0f 1011 1213  ................
+        0x0040:  1415 1617 1819 1a1b 1c1d 1e1f 2021 2223  .............!"#
+        0x0050:  2425 2627)
+[] ip header -> 20 Bytes
+{} icmp header -> 8 Bytes
+() payload
+
+[45 00 00 54 7b a0 40 00 40 01 ef 72 0a 00 02 0f ac d9 16 ae]
+
+struct ip
+  {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    unsigned int ip_hl:4;		/* header length */                     -> 4bits = 0.5 Byte => 4
+    unsigned int ip_v:4;		/* version */                           -> 4bits = 0.5 Byte => 5
+#endif
+#if __BYTE_ORDER == __BIG_ENDIAN
+    unsigned int ip_v:4;		/* version */
+    unsigned int ip_hl:4;		/* header length */
+#endif
+    uint8_t ip_tos;			/* type of service */                       -> 8bits = 1 Byte => 0
+    unsigned short ip_len;		/* total length */                      -> 16bits = 2 Bytes => 84
+    unsigned short ip_id;		/* identification */                    -> 16bits = 2 Bytes => 31648
+    unsigned short ip_off;		/* fragment offset field */             -> 16bits = 2 Bytes => DF flag activé, offset=0
+#define	IP_RF 0x8000			/* reserved fragment flag */
+#define	IP_DF 0x4000			/* dont fragment flag */
+#define	IP_MF 0x2000			/* more fragments flag */
+#define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
+    uint8_t ip_ttl;			/* time to live */                          -> 8bits = 1 Byte => 64
+    uint8_t ip_p;			/* protocol */                              -> 8bits = 1 Byte => 1 = ICMP
+    unsigned short ip_sum;		/* checksum */                          -> 16bits = 2 Bytes => checksum
+    struct in_addr ip_src, ip_dst;	/* source and dest address */       -> 32bits x 2 = 64bits = 8 Bytes => 10.0.2.15, 172.217.22.174
+  };
+
+Total 20 Bytes
+
+ip header = 20 Bytes
+icmp header = 8 Bytes
+size max of the packet 0 <= val <= 65507
+
+total = 65535 -> max ip packet
+
+ip header non compté
+standard total = 64Bytes - icmp header
+= 56 Bytes standard packet
+
+
+
+
+ping inetutils
+4500 0054 441f 4000 4001 3412 0a00 020f
+8efb 276e 0800 8c0e 0003 0001 1999 226a
+0000 0000 a558 0d00 0000 0000 0001 0203
+0405 0607 0809 0a0b 0c0d 0e0f 1011 1213
+1415 1617 1819 1a1b 1c1d 1e1f 2021 2223
+2425 2627
+
+my ping
+4500 0054 5D7B 4000 4001 1A00 0A00 020F
+8EFB 276E 0800 5CA6 5D7B 0000 D998 226A
+0000 0000 BE49 0600 0000 0000 0001 0203
+0405 0607 0809 0A0B 0C0D 0E0F 1011 1213
+1415 1617 1819 1A1B 1C1D 1E1F 2021 2223
+2425 2627

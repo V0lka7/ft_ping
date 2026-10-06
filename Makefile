@@ -22,16 +22,16 @@ BUILD_DIR = .build_test
 endif
 
 LIBS =
-LIBS_TARGET = 
+LIBS_TARGET =
 
 CC = clang
-CFLAGS = -Wall -Wextra -Werror -Wunreachable-code -Wshadow -Wundef
+CFLAGS = -Wall -Wextra -Werror -Wunreachable-code -Wshadow -Wundef --std=c99
 CPPFLAGS = -MMD -MP $(addprefix -I,$(INCLUDE_DIR))
 
 LDFLAGS = $(addprefix -L,$(dir $(LIBS_TARGET)))
 LDLIBS = $(addprefix -l,$(LIBS))
 
-DIRDUP =  mkdir -p $(@D)
+DIRDUP = mkdir -p $(@D)
 
 #####################################################################
 
@@ -56,7 +56,7 @@ all: $(NAME)
 
 release: all
 .PHONY: release
- 
+
 debug: CFLAGS += -gdwarf-4 -ggdb3 -DDEBUG
 debug: $(NAME)
 .PHONY: debug
@@ -93,7 +93,7 @@ $(TEST_ARCHIVE): $(OBJS)
 $(LIBS_TARGET):
 	$(MAKE) -C $(dir $@)
 
-$(BUILD_DIR)/%.o : %.c
+$(BUILD_DIR)/%.o: %.c
 	@$(DIRDUP)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
@@ -103,14 +103,14 @@ $(BUILD_DIR)/%.o : %.c
 
 clean:
 ifneq ($(strip $(LIBS_TARGET)),)
-    @${MAKE} -C $(LIB_DIR)/ clean
+	@${MAKE} -C $(LIB_DIR)/ clean
 endif
 	@rm -vrf $(BUILD_DIR)
 .PHONY: clean
 
 fclean: clean
 ifneq ($(strip $(LIBS_TARGET)),)
-    @${MAKE} -C $(LIB_DIR)/ fclean
+	@${MAKE} -C $(LIB_DIR)/ fclean
 endif
 	@rm -vrf $(NAME)
 .PHONY: fclean
