@@ -1,4 +1,5 @@
-#include "argp.h"
+#include <argp.h>
+#include <unistd.h>
 
 #include "ft_ping.h"
 
@@ -112,3 +113,5 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 }
 
 struct argp g_argp = {options_icmp_control, parse_opt, "HOST ...", argp_doc};
+
+bool is_root(void) { return geteuid() == 0; }

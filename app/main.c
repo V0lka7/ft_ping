@@ -36,9 +36,16 @@
 #include <argp.h>
 
 int main(int argc, char **argv) {
-    FT_PING s_ping;
+    FT_PING s_ping = {{DEFAULT_VERBOSE, DEFAULT_QUIET, DEFAULT_ROUTE,
+                       DEFAULT_INTERVAL, DEFAULT_COUNT},
+                      {DEFAULT_TOS, DEFAULT_TTL, DEFAULT_ROUTE, DEFAULT_TYPE,
+                       DEFAULT_PAYLOAD_SIZE},
+                      {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT}};
+
+    s_ping._socket_settings._root = is_root();
 
     argp_parse(&g_argp, argc, argv, 0, 0, &s_ping);
+
     return 0;
 }
 
