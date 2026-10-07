@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define DEFAULT_PAYLOAD_SIZE 56
 #define DEFAULT_INTERVAL 1

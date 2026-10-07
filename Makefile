@@ -11,7 +11,8 @@ TEST_ARCHIVE = $(NAME).a
 
 #####################################################################
 SRC_DIR = app/src
-INCLUDE_DIR = app/include
+INCLUDE_DIR = app/include/	\
+			  app/src/
 LIB_DIR = lib
 TEST_DIR = test
 
@@ -25,7 +26,7 @@ LIBS =
 LIBS_TARGET =
 
 CC = clang
-CFLAGS = -Wall -Wextra -Werror -Wunreachable-code -Wshadow -Wundef --std=c99
+CFLAGS =
 CPPFLAGS = -MMD -MP $(addprefix -I,$(INCLUDE_DIR))
 
 LDFLAGS = $(addprefix -L,$(dir $(LIBS_TARGET)))
@@ -35,9 +36,12 @@ DIRDUP = mkdir -p $(@D)
 
 #####################################################################
 
-INCLUDES = $(INCLUDE_DIR)/tmp.h
+INCLUDES = ${SRC_DIR}/tmp.h \
+		   ${SRC_DIR}/ft_ping.h
 
-SRC = $(SRC_DIR)/tmp.c
+SRC = $(SRC_DIR)/tmp.c \
+	  ${SRC_DIR}/ft_ping.c \
+	  ${SRC_DIR}/initialization/arguments_parser.c
 ifndef TEST
 SRC += app/main.c
 endif
@@ -50,7 +54,7 @@ DEPS = $(OBJS:.o=.d)
 
 #####################################################################
 
-all: CFLAGS += -O2
+all: CFLAGS += -Wall -Wextra -Werror -Wunreachable-code -Wshadow -Wundef -O2
 all: $(NAME)
 .PHONY: all
 

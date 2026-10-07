@@ -31,6 +31,18 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include "ft_ping.h"
+#include "src/initialization/arguments_parser.h"
+#include <argp.h>
+
+int main(int argc, char **argv) {
+    FT_PING s_ping;
+
+    argp_parse(&g_argp, argc, argv, 0, 0, &s_ping);
+    return 0;
+}
+
+/*
 static int Getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints, struct addrinfo **res);
 // static int Getnameinfo(const struct sockaddr *addr, socklen_t addrlen,
@@ -195,7 +207,7 @@ static int Getaddrinfo(const char *node, const char *service,
     return 1;
   }
   return 0;
-}
+}*/
 
 // static int Getnameinfo(const struct sockaddr *addr, socklen_t addrlen,
 //                        char *host, socklen_t hostlen, char *serv,
