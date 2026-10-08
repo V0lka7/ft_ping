@@ -1,4 +1,7 @@
 #include <argp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "ft_ping.h"
@@ -40,25 +43,33 @@ static struct argp_option options_icmp_control[] = {
     {"usage", USAGE_OPT, 0, 0, "give a short usage message", 4},
     {0}};
 
+static unsigned long parse_number(struct argp_state *state, char *arg);
+
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     FT_PING *s_ping = (FT_PING *)state->input;
-    (void)s_ping;
 
     switch (key) {
     case ECHO_OPT:
-        printf("echo\n");
+        s_ping->_packet_settings._icmp_type = ECHO;
         break;
     case TIMESTAMP_OPT:
-        printf("timestamp\n");
+        s_ping->_packet_settings._icmp_type = TIMESTAMP;
         break;
-    case 't':
-        printf("type: %s\n", arg);
+    case 't': {
+        if (strcmp(arg, "echo") == 0)
+            s_ping->_packet_settings._icmp_type = ECHO;
+        else if (strcmp(arg, "timestamp") == 0)
+            s_ping->_packet_settings._icmp_type = TIMESTAMP;
+        else
+            argp_error(state, "Unsupported packet type: %s", arg);
         break;
+    }
 
     case 'c':
-        printf("count: %s\n", arg);
+        s_ping->_settings._count = (size_t)parse_number(state, arg);
         break;
     case 'i':
+        s_ping->_settings._count = strtol(arg, NULL, 10);
         printf("interval: %s\n", arg);
         break;
     case TTL_OPT:
@@ -115,3 +126,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 struct argp g_argp = {options_icmp_control, parse_opt, "HOST ...", argp_doc};
 
 bool is_root(void) { return geteuid() == 0; }
+
+static unsigned long parse_number(struct argp_state *state, char *arg) {
+    char *end = NULL;
+    unsigned long val;
+
+    errno = 0;
+    val = strtoul(arg, &end, 10);
+
+    if (end != NULL && *end != '\0')
+        argp_error(state, "ft_ping: invalid value (`%s' near `%s')", arg,
+                   end); // exit the program
+
+    return val;
+}

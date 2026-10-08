@@ -16,6 +16,10 @@ typedef enum PACKET_TYPE {
 #define DEFAULT_TYPE 0 // ECHO
 #define DEFAULT_PAYLOAD_SIZE 56
 
+#define MAX_TTL 255
+#define MAX_TOS 255
+#define MAX_PAYLOAD_SIZE 65399
+
 typedef struct PACKET_SETTING {
     uint8_t _tos; // Type of Service
     uint8_t _ttl; // Time to Live
@@ -30,7 +34,7 @@ typedef struct PACKET_SETTING {
 #define DEFAULT_VERBOSE 0 // false
 #define DEFAULT_QUIET 0 // false
 #define DEFAULT_INTERVAL 1 // second
-#define DEFAULT_COUNT // -1 infinite
+#define DEFAULT_COUNT -1// -1 infinite
 
 typedef struct PING_SETTING {
     bool _verbose;
