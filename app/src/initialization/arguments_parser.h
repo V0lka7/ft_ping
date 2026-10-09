@@ -5,6 +5,5 @@
 
 extern struct argp g_argp;
 
-bool is_root(void);
-
 #endif
+

@@ -43,7 +43,9 @@ static struct argp_option options_icmp_control[] = {
     {"usage", USAGE_OPT, 0, 0, "give a short usage message", 4},
     {0}};
 
-static unsigned long parse_number(struct argp_state *state, char *arg);
+static unsigned long parse_number(struct argp_state *state, char *arg, unsigned long max);
+
+static int error = 0;
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     FT_PING *s_ping = (FT_PING *)state->input;
@@ -60,45 +62,47 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             s_ping->_packet_settings._icmp_type = ECHO;
         else if (strcmp(arg, "timestamp") == 0)
             s_ping->_packet_settings._icmp_type = TIMESTAMP;
-        else
+        else {
             argp_error(state, "Unsupported packet type: %s", arg);
+            error = EINVAL;
+        }
         break;
     }
 
     case 'c':
-        s_ping->_settings._count = (size_t)parse_number(state, arg);
+        s_ping->_settings._count = (ssize_t)parse_number(state, arg, ULONG_MAX);
         break;
     case 'i':
-        s_ping->_settings._count = strtol(arg, NULL, 10);
-        printf("interval: %s\n", arg);
+        s_ping->_settings._interval = (size_t)parse_number(state, arg, ULONG_MAX);
         break;
     case TTL_OPT:
-        printf("ttl: %s\n", arg);
+        s_ping->_packet_settings._ttl = (uint8_t)parse_number(state, arg, MAX_TTL);
         break;
     case 'T':
-        printf("tos: %s\n", arg);
+        s_ping->_packet_settings._tos = (uint8_t)parse_number(state, arg, MAX_TOS);
         break;
     case 'v':
-        printf("verbose\n");
+        s_ping->_settings._verbose = true;
         break;
     case 'w':
-        printf("timeout: %s\n", arg);
+        s_ping->_socket_settings._timeout = (ssize_t)parse_number(state, arg, INT_MAX);
         break;
     case 'W':
-        printf("linger: %s\n", arg);
+        s_ping->_socket_settings._linger = (ssize_t)parse_number(state, arg, INT_MAX);
         break;
 
     case 'p':
         printf("pattern: %s\n", arg);
         break;
     case 'q':
-        printf("quiet\n");
+        s_ping->_settings._quiet = true;
         break;
     case 'R':
-        printf("route\n");
+        s_ping->_settings._route = true;
+        s_ping->_packet_settings._route = true;
         break;
     case 's':
-        printf("size: %s\n", arg);
+        s_ping->_packet_settings._payload_size = (size_t)parse_number(state, arg, MAX_PAYLOAD_SIZE);
         break;
 
     case '?':
@@ -113,30 +117,34 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             printf("host: %s\n", state->argv[i]);
         break;
     case ARGP_KEY_END:
-        if (state->arg_num == 0 && state->next == state->argc)
+        if (state->arg_num == 0 && state->next == state->argc) {
             argp_error(state, "missing host operand");
+            error = EINVAL;
+        }
         break;
 
     default:
         return ARGP_ERR_UNKNOWN;
     }
-    return 0;
+    return error;
 }
 
 struct argp g_argp = {options_icmp_control, parse_opt, "HOST ...", argp_doc};
 
-bool is_root(void) { return geteuid() == 0; }
-
-static unsigned long parse_number(struct argp_state *state, char *arg) {
+static unsigned long parse_number(struct argp_state *state, char *arg, unsigned long max) {
     char *end = NULL;
     unsigned long val;
 
     errno = 0;
     val = strtoul(arg, &end, 10);
 
-    if (end != NULL && *end != '\0')
-        argp_error(state, "ft_ping: invalid value (`%s' near `%s')", arg,
+    if (end != NULL && *end != '\0') {
+        argp_error(state, "invalid value (`%s' near `%s')", arg,
                    end); // exit the program
-
+        error = EINVAL;
+    } else if (max != ULONG_MAX && val > max) {
+        argp_error(state, "option value too big: %s", arg); // exit the program
+        error = EINVAL;
+    }
     return val;
 }

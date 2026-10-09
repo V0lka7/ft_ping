@@ -20,6 +20,9 @@ typedef enum PACKET_TYPE {
 #define MAX_TOS 255
 #define MAX_PAYLOAD_SIZE 65399
 
+#define DEFAULT_PATTERN      "0123456789abcdef"
+#define PATTERN_SIZE         16
+
 typedef struct PACKET_SETTING {
     uint8_t _tos; // Type of Service
     uint8_t _ttl; // Time to Live
@@ -28,7 +31,7 @@ typedef struct PACKET_SETTING {
 
     PACKET_TYPE _icmp_type;
     size_t _payload_size; // max 65399 (from ping inetutils)
-
+    uint8_t _pattern[16];
 } PACKET_SETTING;
 
 #define DEFAULT_VERBOSE 0 // false

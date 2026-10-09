@@ -42,9 +42,9 @@ int main(int argc, char **argv) {
                        DEFAULT_PAYLOAD_SIZE},
                       {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT}};
 
-    s_ping._socket_settings._root = is_root();
-
-    argp_parse(&g_argp, argc, argv, 0, 0, &s_ping);
+    s_ping._socket_settings._root = geteuid() == 0;
+    if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) == EINVAL)
+        return EINVAL;
 
     return 0;
 }
