@@ -43,7 +43,8 @@ static struct argp_option options_icmp_control[] = {
     {"usage", USAGE_OPT, 0, 0, "give a short usage message", 4},
     {0}};
 
-static unsigned long parse_number(struct argp_state *state, char *arg, unsigned long max);
+static unsigned long parse_number(struct argp_state *state, char *arg,
+                                  unsigned long max);
 
 static int error = 0;
 
@@ -73,26 +74,31 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         s_ping->_settings._count = (ssize_t)parse_number(state, arg, ULONG_MAX);
         break;
     case 'i':
-        s_ping->_settings._interval = (size_t)parse_number(state, arg, ULONG_MAX);
+        s_ping->_settings._interval =
+            (size_t)parse_number(state, arg, ULONG_MAX);
         break;
     case TTL_OPT:
-        s_ping->_packet_settings._ttl = (uint8_t)parse_number(state, arg, MAX_TTL);
+        s_ping->_packet_settings._ttl =
+            (uint8_t)parse_number(state, arg, MAX_TTL);
         break;
     case 'T':
-        s_ping->_packet_settings._tos = (uint8_t)parse_number(state, arg, MAX_TOS);
+        s_ping->_packet_settings._tos =
+            (uint8_t)parse_number(state, arg, MAX_TOS);
         break;
     case 'v':
         s_ping->_settings._verbose = true;
         break;
     case 'w':
-        s_ping->_socket_settings._timeout = (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->_socket_settings._timeout =
+            (ssize_t)parse_number(state, arg, INT_MAX);
         break;
     case 'W':
-        s_ping->_socket_settings._linger = (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->_socket_settings._linger =
+            (ssize_t)parse_number(state, arg, INT_MAX);
         break;
 
     case 'p':
-        printf("pattern: %s\n", arg);
+        strncpy((char *)s_ping->_packet_settings._pattern, arg, PATTERN_SIZE);
         break;
     case 'q':
         s_ping->_settings._quiet = true;
@@ -102,7 +108,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         s_ping->_packet_settings._route = true;
         break;
     case 's':
-        s_ping->_packet_settings._payload_size = (size_t)parse_number(state, arg, MAX_PAYLOAD_SIZE);
+        s_ping->_packet_settings._payload_size =
+            (size_t)parse_number(state, arg, MAX_PAYLOAD_SIZE);
         break;
 
     case '?':
@@ -131,7 +138,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 struct argp g_argp = {options_icmp_control, parse_opt, "HOST ...", argp_doc};
 
-static unsigned long parse_number(struct argp_state *state, char *arg, unsigned long max) {
+static unsigned long parse_number(struct argp_state *state, char *arg,
+                                  unsigned long max) {
     char *end = NULL;
     unsigned long val;
 

@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -42,6 +43,8 @@ int main(int argc, char **argv) {
                        DEFAULT_PAYLOAD_SIZE},
                       {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT}};
 
+    bzero(s_ping._packet_settings._pattern,
+          sizeof(s_ping._packet_settings._pattern));
     s_ping._socket_settings._root = geteuid() == 0;
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) == EINVAL)
         return EINVAL;
