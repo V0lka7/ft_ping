@@ -20,7 +20,7 @@ typedef enum PACKET_TYPE {
 #define MAX_TOS 255
 #define MAX_PAYLOAD_SIZE 65399
 
-#define PATTERN_SIZE         15
+#define PATTERN_SIZE         16
 
 typedef struct PACKET_SETTING {
     uint8_t _tos; // Type of Service

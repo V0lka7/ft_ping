@@ -46,8 +46,9 @@ int main(int argc, char **argv) {
     bzero(s_ping._packet_settings._pattern,
           sizeof(s_ping._packet_settings._pattern));
     s_ping._socket_settings._root = geteuid() == 0;
-    if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) == EINVAL)
-        return EINVAL;
+
+    if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
+        return 1;
 
     return 0;
 }

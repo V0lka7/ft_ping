@@ -1,4 +1,8 @@
 #include <argp.h>
+#include <asm-generic/errno-base.h>
+#include <ctype.h>
+#include <regex.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +49,7 @@ static struct argp_option options_icmp_control[] = {
 
 static unsigned long parse_number(struct argp_state *state, char *arg,
                                   unsigned long max);
+static void parse_pattern(FT_PING *s_ping, struct argp_state *state, char *arg);
 
 static int error = 0;
 
@@ -98,7 +103,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         break;
 
     case 'p':
-        strncpy((char *)s_ping->_packet_settings._pattern, arg, PATTERN_SIZE);
+        parse_pattern(s_ping, state, arg);
         break;
     case 'q':
         s_ping->_settings._quiet = true;
@@ -155,4 +160,31 @@ static unsigned long parse_number(struct argp_state *state, char *arg,
         error = EINVAL;
     }
     return val;
+}
+
+static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
+                          char *arg) {
+
+    char *ptr = (char *)s_ping->_packet_settings._pattern;
+    size_t ptr_size = strlen(ptr);
+
+    if (strlen(arg) == 0) {
+        memset(ptr, '0', PATTERN_SIZE - 1);
+        return;
+    }
+
+    size_t i = 0;
+
+    while (arg[i]) {
+        if (!isxdigit(arg[i])) {
+            argp_error(state, "error in pattern near `%s\'", arg + i);
+            error = EINVAL;
+            return;
+        }
+        i++;
+    }
+    size_t arg_len = strlen(arg);
+    // to lower all alpha caracters
+    for (size_t i = 0; i < arg_len && i < PATTERN_SIZE; i++)
+        ptr[i] = (char)tolower(arg[i]);
 }
