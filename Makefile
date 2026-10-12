@@ -37,11 +37,15 @@ DIRDUP = mkdir -p $(@D)
 #####################################################################
 
 INCLUDES = ${SRC_DIR}/tmp.h \
-		   ${SRC_DIR}/ft_ping.h
+		   ${SRC_DIR}/ft_ping.h \
+		   ${SRC_DIR}/initialization/arguments_parser.h \
+		   ${SRC_DIR}/signals_handler.h
 
 SRC = $(SRC_DIR)/tmp.c \
 	  ${SRC_DIR}/ft_ping.c \
-	  ${SRC_DIR}/initialization/arguments_parser.c
+	  ${SRC_DIR}/initialization/arguments_parser.c \
+	  ${SRC_DIR}/signals_handler.c
+
 ifndef TEST
 SRC += app/main.c
 endif

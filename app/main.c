@@ -34,6 +34,8 @@
 
 #include "ft_ping.h"
 #include "src/initialization/arguments_parser.h"
+#include "src/signals_handler.h"
+
 #include <argp.h>
 
 int main(int argc, char **argv) {
@@ -49,6 +51,10 @@ int main(int argc, char **argv) {
 
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
         return 1;
+
+    while (g_quit) {
+        usleep(10);
+    }
 
     return 0;
 }
