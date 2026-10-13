@@ -50,10 +50,11 @@ static unsigned long parse_number(struct argp_state *state, char *arg,
 static void parse_pattern(FT_PING *s_ping, struct argp_state *state, char *arg);
 static int create_target_list(TARGET **head, struct argp_state *state);
 
-static int error = 0;
+static int error;
 static int help_activated = 0;
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+    error = 0;
     if (help_activated == 1)
         return 0;
     FT_PING *s_ping = (FT_PING *)state->input;
@@ -78,7 +79,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     }
 
     case 'c':
-        s_ping->_settings._count = (ssize_t)parse_number(state, arg, ULONG_MAX);
+        s_ping->_settings._count = (size_t)parse_number(state, arg, ULONG_MAX);
         break;
     case 'i':
         s_ping->_settings._interval =

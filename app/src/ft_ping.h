@@ -41,7 +41,7 @@ typedef struct PING_SETTING {
 #define DEFAULT_VERBOSE 0 // false
 #define DEFAULT_QUIET 0 // false
 #define DEFAULT_INTERVAL 1 // second
-#define DEFAULT_COUNT -1// -1 infinite
+#define DEFAULT_COUNT 0// 0 = infinite
 
     bool _verbose;
     bool _quiet;
@@ -49,7 +49,7 @@ typedef struct PING_SETTING {
     bool _route;
 
     size_t _interval;
-    ssize_t _count;
+    size_t _count;
 } PING_SETTING;
 
 typedef struct SOCKET_SETTING {

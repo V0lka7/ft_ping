@@ -3,6 +3,8 @@
 #include "initialization/arguments_parser.h"
 
 #include <argp.h>
+#include <signal.h>
+#include <sys/types.h>
 
 static FT_PING *s_ping = NULL;
 
@@ -43,11 +45,11 @@ static int tab_len(char **tab) {
     return i;
 }
 
-TEST test_echo_mispelled_1(void) {
+TEST test_echo_mispelled_but_ok(void) {
     char *argv[] = {"ft_ping", "--ech", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     PASS();
 }
 
@@ -55,7 +57,7 @@ TEST test_echo_mispelled_2(void) {
     char *argv[] = {"ft_ping", "--echoo", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     PASS();
 }
 
@@ -68,11 +70,11 @@ TEST test_echo_type(void) {
     PASS();
 }
 
-TEST test_timestamp_mispelled_1(void) {
+TEST test_timestamp_mispelled_but_ok(void) {
     char *argv[] = {"ft_ping", "--timesta", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     PASS();
 }
 
@@ -80,7 +82,7 @@ TEST test_timestamp_mispelled_2(void) {
     char *argv[] = {"ft_ping", "--timestampp", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     PASS();
 }
 
@@ -124,7 +126,7 @@ TEST test_type_arg_empty(void) {
     char *argv[] = {"ft_ping", "-t", "", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     PASS();
 }
 
@@ -132,7 +134,10 @@ TEST test_type_arg_echo(void) {
     char *argv[] = {"ft_ping", "-t", "echo", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    int ret = argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping);
+    ASSERT_EQ(0, ret);
+
+    // ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     ASSERT_EQ(ECHO, s_ping->_packet_settings._icmp_type);
     PASS();
 }
@@ -170,7 +175,49 @@ TEST test_count_complete_cmd_empty(void) {
     char *argv[] = {"ft_ping", "--count", "", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(-1, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    PASS();
+}
+
+TEST test_count_not_a_number_1(void) {
+    char *argv[] = {"ft_ping", "--count", "jfnsjfn", "test.com", NULL};
+    int argc = tab_len(argv);
+
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    PASS();
+}
+
+TEST test_count_not_a_number_2(void) {
+    char *argv[] = {"ft_ping", "--count", "--2", "test.com", NULL};
+    int argc = tab_len(argv);
+
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    PASS();
+}
+
+TEST test_count_not_a_number_3(void) {
+    char *argv[] = {"ft_ping", "--count", "-20d", "test.com", NULL};
+    int argc = tab_len(argv);
+
+    ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    PASS();
+}
+
+TEST test_count_valid_number_1(void) {
+    char *argv[] = {"ft_ping", "--count", "20", "test.com", NULL};
+    int argc = tab_len(argv);
+
+    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_EQ(20, s_ping->_settings._count);
+    PASS();
+}
+
+TEST test_count_valid_number_2(void) {
+    char *argv[] = {"ft_ping", "--count", "-20", "test.com", NULL};
+    int argc = tab_len(argv);
+
+    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    ASSERT_EQ((ssize_t)strtoul("-20", NULL, 10), s_ping->_settings._count);
     PASS();
 }
 
@@ -180,10 +227,10 @@ SUITE(test_init) {
 
     // Type tests
     RUN_TEST(test_echo_type);
-    RUN_TEST(test_echo_mispelled_1);
+    RUN_TEST(test_echo_mispelled_but_ok);
     RUN_TEST(test_echo_mispelled_2);
     RUN_TEST(test_echo_type);
-    RUN_TEST(test_timestamp_mispelled_1);
+    RUN_TEST(test_timestamp_mispelled_but_ok);
     RUN_TEST(test_timestamp_mispelled_2);
     RUN_TEST(test_timestamp_type);
     RUN_TEST(test_multiple_type_cmd_1);
@@ -197,4 +244,9 @@ SUITE(test_init) {
 
     // count tests
     RUN_TEST(test_count_complete_cmd_empty);
+    RUN_TEST(test_count_not_a_number_1);
+    RUN_TEST(test_count_not_a_number_2);
+    RUN_TEST(test_count_not_a_number_3);
+    RUN_TEST(test_count_valid_number_1);
+    RUN_TEST(test_count_valid_number_2);
 }
