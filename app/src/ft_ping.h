@@ -1,6 +1,7 @@
 #ifndef FT_PING_H
 #define FT_PING_H
 
+#include <netdb.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -9,6 +10,8 @@ typedef enum PACKET_TYPE {
     ECHO,
     TIMESTAMP
 } PACKET_TYPE;
+
+typedef struct PACKET_SETTING {
 
 #define DEFAULT_TOS 0
 #define DEFAULT_TTL 63
@@ -22,7 +25,6 @@ typedef enum PACKET_TYPE {
 
 #define PATTERN_SIZE         16
 
-typedef struct PACKET_SETTING {
     uint8_t _tos; // Type of Service
     uint8_t _ttl; // Time to Live
 
@@ -33,12 +35,14 @@ typedef struct PACKET_SETTING {
     uint8_t _pattern[PATTERN_SIZE];
 } PACKET_SETTING;
 
+
+typedef struct PING_SETTING {
+
 #define DEFAULT_VERBOSE 0 // false
 #define DEFAULT_QUIET 0 // false
 #define DEFAULT_INTERVAL 1 // second
 #define DEFAULT_COUNT -1// -1 infinite
 
-typedef struct PING_SETTING {
     bool _verbose;
     bool _quiet;
 
@@ -48,21 +52,32 @@ typedef struct PING_SETTING {
     ssize_t _count;
 } PING_SETTING;
 
+typedef struct SOCKET_SETTING {
+
 #define DEFAULT_ROOT 0 // false
 #define DEFAULT_LINGER -1
 #define DEFAULT_TIMEOUT -1
 
-typedef struct SOCKET_SETTING {
     bool _root;
     ssize_t _linger;
     ssize_t _timeout;
 } SOCKET_SETTING;
 
+typedef struct TARGET {
+    char target_name[NI_MAXHOST];
+
+    struct TARGET *next;
+} TARGET;
+
 typedef struct FT_PING {
     PING_SETTING _settings;
     PACKET_SETTING _packet_settings;
     SOCKET_SETTING _socket_settings;
+
+    TARGET *_targets;
 } FT_PING;
+
+void clear_targets(TARGET *targets);
 
 #endif
 

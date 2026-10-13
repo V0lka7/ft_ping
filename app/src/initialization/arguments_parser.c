@@ -1,7 +1,5 @@
 #include <argp.h>
-#include <asm-generic/errno-base.h>
-#include <ctype.h>
-#include <regex.h>
+#include <netdb.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,10 +48,14 @@ static struct argp_option options_icmp_control[] = {
 static unsigned long parse_number(struct argp_state *state, char *arg,
                                   unsigned long max);
 static void parse_pattern(FT_PING *s_ping, struct argp_state *state, char *arg);
+static int create_target_list(TARGET **head, struct argp_state *state);
 
 static int error = 0;
+static int help_activated = 0;
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+    if (help_activated == 1)
+        return 0;
     FT_PING *s_ping = (FT_PING *)state->input;
 
     switch (key) {
@@ -70,7 +72,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             s_ping->_packet_settings._icmp_type = TIMESTAMP;
         else {
             argp_error(state, "Unsupported packet type: %s", arg);
-            error = EINVAL;
+            error = -1;
         }
         break;
     }
@@ -118,20 +120,24 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         break;
 
     case '?':
+        help_activated = 1;
         argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
         break;
     case USAGE_OPT:
+        help_activated = 1;
         argp_state_help(state, stdout, ARGP_HELP_USAGE | ARGP_HELP_EXIT_OK);
         break;
 
     case ARGP_KEY_ARGS:
-        for (int i = state->next; i < state->argc; i++)
-            printf("host: %s\n", state->argv[i]);
+        if (create_target_list(&s_ping->_targets, state) == -1) {
+            argp_error(state, "unexpected error");
+            error = -1;
+        }
         break;
     case ARGP_KEY_END:
         if (state->arg_num == 0 && state->next == state->argc) {
             argp_error(state, "missing host operand");
-            error = EINVAL;
+            error = -1;
         }
         break;
 
@@ -154,10 +160,10 @@ static unsigned long parse_number(struct argp_state *state, char *arg,
     if (end != NULL && *end != '\0') {
         argp_error(state, "invalid value (`%s' near `%s')", arg,
                    end); // exit the program
-        error = EINVAL;
+        error = -1;
     } else if (max != ULONG_MAX && val > max) {
         argp_error(state, "option value too big: %s", arg); // exit the program
-        error = EINVAL;
+        error = -1;
     }
     return val;
 }
@@ -178,7 +184,7 @@ static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
     while (arg[i]) {
         if (!isxdigit(arg[i])) {
             argp_error(state, "error in pattern near `%s\'", arg + i);
-            error = EINVAL;
+            error = -1;
             return;
         }
         i++;
@@ -187,4 +193,21 @@ static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
     // to lower all alpha caracters
     for (size_t i = 0; i < arg_len && i < PATTERN_SIZE; i++)
         ptr[i] = (char)tolower(arg[i]);
+}
+
+static int create_target_list(TARGET **head, struct argp_state *state) {
+    TARGET **tmp_head = head;
+
+    for (int i = state->next; i < state->argc; i++) {
+        TARGET *node = (TARGET *)calloc(1, sizeof(TARGET));
+
+        if (node == NULL)
+            return -1;
+        strncpy(node->target_name, state->argv[i], NI_MAXHOST - 1);
+        node->next = NULL;
+
+        *tmp_head = node;
+        tmp_head = &node->next;
+    }
+    return 0;
 }

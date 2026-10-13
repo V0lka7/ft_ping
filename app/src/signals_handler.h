@@ -3,4 +3,6 @@
 
 extern volatile int g_quit;
 
+void init_signals_handler();
+
 #endif

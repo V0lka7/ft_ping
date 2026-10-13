@@ -24,9 +24,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/ip_icmp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -43,7 +40,8 @@ int main(int argc, char **argv) {
                        DEFAULT_INTERVAL, DEFAULT_COUNT},
                       {DEFAULT_TOS, DEFAULT_TTL, DEFAULT_ROUTE, DEFAULT_TYPE,
                        DEFAULT_PAYLOAD_SIZE},
-                      {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT}};
+                      {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT},
+                      NULL};
 
     bzero(s_ping._packet_settings._pattern,
           sizeof(s_ping._packet_settings._pattern));
@@ -52,9 +50,19 @@ int main(int argc, char **argv) {
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
         return 1;
 
-    while (g_quit) {
-        usleep(10);
+    init_signals_handler();
+    // while (g_quit) {
+    //     usleep(10);
+    // }
+
+    TARGET *node = s_ping._targets;
+
+    while (node) {
+        printf("target_name: |%s|\n", node->target_name);
+        node = node->next;
     }
+
+    clear_targets(s_ping._targets);
 
     return 0;
 }
