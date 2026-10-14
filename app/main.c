@@ -36,6 +36,10 @@
 #include <argp.h>
 
 int main(int argc, char **argv) {
+
+    if (init_signals_handler() == -1)
+        return 1;
+
     FT_PING s_ping = {{DEFAULT_VERBOSE, DEFAULT_QUIET, DEFAULT_ROUTE,
                        DEFAULT_INTERVAL, DEFAULT_COUNT},
                       {DEFAULT_TOS, DEFAULT_TTL, DEFAULT_ROUTE, DEFAULT_TYPE,
@@ -50,16 +54,13 @@ int main(int argc, char **argv) {
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
         return 1;
 
-    init_signals_handler();
-    // while (g_quit) {
-    //     usleep(10);
-    // }
-
-    TARGET *node = s_ping._targets;
-
-    while (node) {
-        printf("target_name: |%s|\n", node->target_name);
-        node = node->next;
+    while (v_quit) {
+        if (v_alarm) {
+            printf("Sig alarm triggered!\n");
+            v_alarm = 0;
+            alarm(s_ping._settings._interval);
+        }
+        usleep(10);
     }
 
     clear_targets(s_ping._targets);
