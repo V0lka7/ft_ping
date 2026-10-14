@@ -1,10 +1,13 @@
 #ifndef FT_PING_H
 #define FT_PING_H
 
+#include <netinet/ip.h>
 #include <netdb.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
+#include "communication/packet.h"
 
 typedef enum PACKET_TYPE {
     ECHO,
@@ -14,14 +17,14 @@ typedef enum PACKET_TYPE {
 typedef struct PACKET_SETTING {
 
 #define DEFAULT_TOS 0
-#define DEFAULT_TTL 63
+#define DEFAULT_TTL IPDEFTTL // 64
 #define DEFAULT_ROUTE 0 // false
 #define DEFAULT_TYPE 0 // ECHO
 #define DEFAULT_PAYLOAD_SIZE 56
 
 #define MAX_TTL 255
 #define MAX_TOS 255
-#define MAX_PAYLOAD_SIZE 65399
+#define MAX_PAYLOAD_SIZE IP_MAXPACKET - (MAX_IP_HDR_LEN + MAX_ICMP_HDR_LEN) // 65535 - 76
 
 #define PATTERN_SIZE         16
 
@@ -65,6 +68,8 @@ typedef struct SOCKET_SETTING {
 
 typedef struct TARGET {
     char target_name[NI_MAXHOST];
+
+    size_t request_count;
 
     struct TARGET *next;
 } TARGET;

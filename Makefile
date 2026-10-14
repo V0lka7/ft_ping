@@ -38,7 +38,8 @@ DIRDUP = mkdir -p $(@D)
 
 INCLUDES = ${SRC_DIR}/ft_ping.h \
 		   ${SRC_DIR}/initialization/arguments_parser.h \
-		   ${SRC_DIR}/signals_handler.h
+		   ${SRC_DIR}/signals_handler.h \
+		   ${SRC_DIR}/communication/packet.h
 
 SRC = ${SRC_DIR}/ft_ping.c \
 	  ${SRC_DIR}/initialization/arguments_parser.c \
