@@ -26,7 +26,7 @@ LIBS =
 LIBS_TARGET =
 
 CC = clang
-CFLAGS =
+CFLAGS = -Wall -Wextra
 CPPFLAGS = -MMD -MP $(addprefix -I,$(INCLUDE_DIR))
 
 LDFLAGS = $(addprefix -L,$(dir $(LIBS_TARGET)))
@@ -57,7 +57,7 @@ DEPS = $(OBJS:.o=.d)
 
 #####################################################################
 
-all: CFLAGS += -Wall -Wextra -Werror -Wunreachable-code -Wshadow -Wundef -O2
+all: CFLAGS += -Werror -Wunreachable-code -Wshadow -Wundef -O2
 all: $(NAME)
 .PHONY: all
 
