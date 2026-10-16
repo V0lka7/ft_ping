@@ -1,5 +1,5 @@
-#ifndef PACKET_H
-#define PACKET_H
+#ifndef ICMP_H
+#define ICMP_H
 
 #include <netinet/ip_icmp.h>
 #include <netinet/ip.h>
@@ -14,7 +14,7 @@
 #define MAX_ICMP_HDR_LEN ICMP_HDR_LEN + MAX_IP_HDR_LEN + 8 // => 76 Bytes
 
 #define DEFAULT_PATTERN "0123456789abcdef"
-#define DEFAULT_PATTERN_LEN 17
+#define DEFAULT_PATTERN_LEN 16
 #define DEFAULT_EMPTY_PATTERN '0'
 
 enum PACKET_TYPE;
@@ -35,7 +35,5 @@ int change_icmp_timeval(uint8_t *packet, const size_t packet_len,
                         const size_t payload_len);
 int change_icmp_sequence(uint8_t *packet, const size_t packet_len,
                          const uint16_t seq_value);
-
-uint16_t checksum(void *addr, size_t len);
 
 #endif

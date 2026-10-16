@@ -9,8 +9,9 @@
 
 #include "greatest.h"
 
-#include "communication/packet.h"
 #include "ft_ping.h" /* PACKET_TYPE enum (ECHO / TIMESTAMP) */
+#include "protocols/icmp.h"
+#include "utils.h" // checksum
 
 #define HDR sizeof(struct icmphdr)
 #define TV sizeof(struct timeval)
@@ -389,25 +390,19 @@ TEST checksum_verifies_to_zero_once_inserted(void) {
     PASS();
 }
 
-SUITE(init_suite) {
+SUITE(icmp_suite) {
     RUN_TEST(init_null_packet);
     RUN_TEST(init_buffer_too_small);
     RUN_TEST(init_echo_fields);
     RUN_TEST(init_timestamp_type);
-}
 
-SUITE(timeval_suite) {
     RUN_TEST(timeval_len_too_small);
     RUN_TEST(timeval_writes_current_time);
-}
 
-SUITE(change_timeval_suite) {
     RUN_TEST(change_tv_null_packet);
     RUN_TEST(change_tv_small_payload_is_noop);
     RUN_TEST(change_tv_updates_time_and_checksum);
-}
 
-SUITE(payload_suite) {
     RUN_TEST(payload_null_packet);
     RUN_TEST(payload_larger_than_buffer);
     RUN_TEST(payload_default_pattern);
@@ -417,9 +412,7 @@ SUITE(payload_suite) {
     RUN_TEST(payload_does_not_overrun_payload_len_pattern);
     RUN_TEST(payload_does_not_overrun_payload_len_fallback);
     RUN_TEST(payload_zero_len_writes_nothing);
-}
 
-SUITE(data_suite) {
     RUN_TEST(data_null_packet);
     RUN_TEST(data_buffer_too_small);
     RUN_TEST(data_small_payload_has_no_timestamp);
@@ -428,15 +421,11 @@ SUITE(data_suite) {
     RUN_TEST(data_checksum_is_stored_and_valid);
     RUN_TEST(data_checksum_header_only);
     RUN_TEST(data_does_not_touch_bytes_after_payload);
-}
 
-SUITE(change_sequence_suite) {
     RUN_TEST(change_seq_null_or_too_small);
     RUN_TEST(change_seq_sets_field);
     RUN_TEST(change_seq_updates_checksum);
-}
 
-SUITE(checksum_suite) {
     RUN_TEST(checksum_rfc1071_example);
     RUN_TEST(checksum_odd_length);
     RUN_TEST(checksum_empty_input);

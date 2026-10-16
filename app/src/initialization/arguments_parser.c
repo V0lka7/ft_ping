@@ -194,8 +194,11 @@ static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
     }
     size_t arg_len = strlen(arg);
     // to lower all alpha caracters
-    for (size_t i = 0; i < arg_len && i < PATTERN_SIZE; i++)
+    i = 0;
+    while (i < arg_len && i < PATTERN_SIZE) {
         ptr[i] = (char)tolower(arg[i]);
+        i++;
+    }
 }
 
 static int create_target_list(TARGET **head, struct argp_state *state) {

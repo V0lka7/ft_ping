@@ -1062,7 +1062,7 @@ TEST test_combined_options_one_invalid(void) {
     PASS();
 }
 
-SUITE(test_init) {
+SUITE(arguments_parser_suite) {
     SET_SETUP(setup, NULL);
     SET_TEARDOWN(teardown, NULL);
 
