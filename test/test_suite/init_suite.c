@@ -358,7 +358,7 @@ TEST test_count_valid_number_2(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((ssize_t)strtoul("-20", NULL, 10), s_ping->_settings._count);
+    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._count);
     PASS();
 }
 
@@ -367,7 +367,7 @@ TEST test_count_valid_number_3(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((ssize_t)strtoul("-20", NULL, 10), s_ping->_settings._count);
+    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._count);
     PASS();
 }
 
@@ -439,7 +439,7 @@ TEST test_interval_valid_number_2(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((ssize_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
+    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
     PASS();
 }
 
@@ -448,7 +448,7 @@ TEST test_interval_valid_number_3(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((ssize_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
+    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
     PASS();
 }
 
@@ -1073,6 +1073,11 @@ SUITE(test_init) {
     RUN_TEST(test_missing_host_only_options);
     RUN_TEST(test_option_missing_argument_1);
     RUN_TEST(test_option_missing_argument_2);
+
+    RUN_TEST(test_target_single);
+    RUN_TEST(test_target_multiple);
+    RUN_TEST(test_target_option_after_host);
+    RUN_TEST(test_target_name_truncated);
 
     // Type tests
     RUN_TEST(test_echo_type);

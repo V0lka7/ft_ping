@@ -40,12 +40,21 @@ int main(int argc, char **argv) {
     if (init_signals_handler() == -1)
         return 1;
 
-    FT_PING s_ping = {{DEFAULT_VERBOSE, DEFAULT_QUIET, DEFAULT_ROUTE,
-                       DEFAULT_INTERVAL, DEFAULT_COUNT},
-                      {DEFAULT_TOS, DEFAULT_TTL, DEFAULT_ROUTE, DEFAULT_TYPE,
-                       DEFAULT_PAYLOAD_SIZE},
-                      {DEFAULT_ROOT, DEFAULT_LINGER, DEFAULT_TIMEOUT},
-                      NULL};
+    FT_PING s_ping = {
+        ._settings = {._verbose = DEFAULT_VERBOSE,
+                      ._quiet = DEFAULT_QUIET,
+                      ._route = DEFAULT_ROUTE,
+                      ._interval = DEFAULT_INTERVAL,
+                      ._count = DEFAULT_COUNT},
+        ._packet_settings = {._tos = DEFAULT_TOS,
+                             ._ttl = DEFAULT_TTL,
+                             ._route = DEFAULT_ROUTE,
+                             ._icmp_type = DEFAULT_TYPE,
+                             ._payload_size = DEFAULT_PAYLOAD_SIZE},
+        ._socket_settings = {._root = DEFAULT_ROOT,
+                             ._linger = DEFAULT_LINGER,
+                             ._timeout = DEFAULT_TIMEOUT},
+    };
 
     bzero(s_ping._packet_settings._pattern,
           sizeof(s_ping._packet_settings._pattern));
@@ -56,6 +65,7 @@ int main(int argc, char **argv) {
 
     while (v_quit) {
         if (v_alarm) {
+            // Send icmp request here
             printf("Sig alarm triggered!\n");
             v_alarm = 0;
             alarm(s_ping._settings._interval);

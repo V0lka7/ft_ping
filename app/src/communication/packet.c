@@ -39,7 +39,7 @@ int set_icmp_data(uint8_t *packet, const size_t packet_len,
         size_t padding = 0;
         if (payload_len >= sizeof(struct timeval)) {
             set_icmp_timeval(packet + sizeof(struct icmphdr),
-                             packet_len - sizeof(struct timeval));
+                             packet_len - sizeof(struct icmphdr));
             padding = sizeof(struct timeval);
         }
         set_icmp_payload(packet + sizeof(struct icmphdr) + padding,
@@ -47,12 +47,14 @@ int set_icmp_data(uint8_t *packet, const size_t packet_len,
                          payload_len - padding, pattern, pattern_len);
     }
 
-    checksum(packet, packet_len + payload_len);
+    struct icmphdr *ptr = (struct icmphdr *)packet;
+
+    ptr->checksum = checksum(packet, packet_len + payload_len);
     return 0;
 }
 
 int set_icmp_timeval(uint8_t *packet, const size_t packet_len) {
-    if (packet_len < sizeof(struct timeval))
+    if (packet == NULL || packet_len < sizeof(struct timeval))
         return -1;
     struct timeval *time = (struct timeval *)packet;
     gettimeofday(time, NULL);
@@ -70,7 +72,7 @@ int change_icmp_timeval(uint8_t *packet, const size_t packet_len,
     struct icmphdr *ptr = (struct icmphdr *)packet;
 
     ptr->checksum = 0;
-    checksum(packet, packet_len);
+    ptr->checksum = checksum(packet, packet_len);
     return 0;
 }
 
@@ -82,7 +84,7 @@ int change_icmp_sequence(uint8_t *packet, const size_t packet_len,
 
     ptr->un.echo.sequence = seq_value;
     ptr->checksum = 0;
-    checksum(packet, packet_len);
+    ptr->checksum = checksum(packet, packet_len);
     return 0;
 }
 
@@ -92,7 +94,7 @@ int set_icmp_payload(uint8_t *packet, const size_t packet_len,
     if (packet == NULL || packet_len < payload_len)
         return -1;
 
-    static const char default_pattern[16] = DEFAULT_PATTERN;
+    static const char default_pattern[DEFAULT_PATTERN_LEN] = DEFAULT_PATTERN;
     static const size_t default_pattern_len = DEFAULT_PATTERN_LEN;
 
     const uint8_t *pattern_in_use =
@@ -103,9 +105,9 @@ int set_icmp_payload(uint8_t *packet, const size_t packet_len,
     if (pattern_in_use_len == 0) {
         memset(packet, DEFAULT_EMPTY_PATTERN, payload_len);
     } else {
-        for (size_t i = 0; i < packet_len; i += pattern_in_use_len) {
-            size_t len_to_copy = (packet_len - i < pattern_in_use_len)
-                                     ? packet_len - i
+        for (size_t i = 0; i < payload_len; i += pattern_in_use_len) {
+            size_t len_to_copy = (payload_len - i < pattern_in_use_len)
+                                     ? payload_len - i
                                      : pattern_in_use_len;
             memcpy(packet + i, pattern_in_use, len_to_copy);
         }

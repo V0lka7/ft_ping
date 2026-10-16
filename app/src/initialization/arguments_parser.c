@@ -148,7 +148,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     return error;
 }
 
-struct argp g_argp = {options_icmp_control, parse_opt, "HOST ...", argp_doc};
+struct argp g_argp = {.options = options_icmp_control,
+                      .parser = parse_opt,
+                      .args_doc = "HOST ...",
+                      .doc = argp_doc};
 
 static unsigned long parse_number(struct argp_state *state, char *arg,
                                   unsigned long max) {
@@ -173,7 +176,6 @@ static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
                           char *arg) {
 
     char *ptr = (char *)s_ping->_packet_settings._pattern;
-    size_t ptr_size = strlen(ptr);
 
     if (strlen(arg) == 0) {
         memset(ptr, '0', PATTERN_SIZE - 1);

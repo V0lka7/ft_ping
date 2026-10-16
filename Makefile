@@ -43,7 +43,8 @@ INCLUDES = ${SRC_DIR}/ft_ping.h \
 
 SRC = ${SRC_DIR}/ft_ping.c \
 	  ${SRC_DIR}/initialization/arguments_parser.c \
-	  ${SRC_DIR}/signals_handler.c
+	  ${SRC_DIR}/signals_handler.c \
+	  ${SRC_DIR}/communication/packet.c
 
 ifndef TEST
 SRC += app/main.c
