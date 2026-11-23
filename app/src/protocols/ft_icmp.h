@@ -1,5 +1,5 @@
-#ifndef ICMP_H
-#define ICMP_H
+#ifndef FT_ICMP_H
+#define FT_ICMP_H
 
 #include <netinet/ip_icmp.h>
 #include <netinet/ip.h>

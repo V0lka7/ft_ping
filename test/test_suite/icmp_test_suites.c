@@ -10,7 +10,7 @@
 #include "greatest.h"
 
 #include "ft_ping.h" /* PACKET_TYPE enum (ECHO / TIMESTAMP) */
-#include "protocols/icmp.h"
+#include "protocols/ft_icmp.h"
 #include "utils.h" // checksum
 
 #define HDR sizeof(struct icmphdr)

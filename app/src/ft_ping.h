@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "protocols/icmp.h"
+#include "protocols/ft_icmp.h"
 
 typedef enum PACKET_TYPE {
     ECHO,
