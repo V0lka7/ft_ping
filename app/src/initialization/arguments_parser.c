@@ -209,7 +209,9 @@ static int create_target_list(TARGET **head, struct argp_state *state) {
 
         if (node == NULL)
             return -1;
-        strncpy(node->target_name, state->argv[i], NI_MAXHOST - 1);
+        bzero(node->_target_name, NI_MAXHOST);
+        bzero(node->_target_ip, INET_ADDRSTRLEN);
+        strncpy(node->_target_name, state->argv[i], NI_MAXHOST - 1);
         node->next = NULL;
 
         *tmp_head = node;

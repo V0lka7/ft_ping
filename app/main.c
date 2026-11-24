@@ -35,6 +35,9 @@
 
 #include <argp.h>
 
+static void quit(FT_PING *s_ping, int sockfd, int status);
+static void init_target(FT_PING *s_ping);
+
 int main(int argc, char **argv) {
 
     if (init_signals_handler() == -1)
@@ -63,10 +66,57 @@ int main(int argc, char **argv) {
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
         return 1;
 
+    init_target(&s_ping);
+
+    int sockfd = create_socket(&s_ping._socket_settings);
+    close(sockfd);
+
     while (v_quit) {
         if (v_alarm) {
-            // Send icmp request here
-            printf("Sig alarm triggered!\n");
+            // printf("Sig alarm triggered!\n");
+
+            switch (s_ping._settings._count) {
+            case 0:
+                if (resolve_dns(&s_ping, s_ping._current_target) == -1) {
+                    quit(&s_ping, sockfd, 1);
+                } else {
+                    printf("Resolved %s to %s\n",
+                           s_ping._current_target->_target_name,
+                           s_ping._current_target->_target_ip);
+                    s_ping._current_target->_init = true;
+                }
+                // infinite requests, do nothing
+                printf("Sending ping to %s (%s)\n",
+                       s_ping._current_target->_target_name,
+                       s_ping._current_target->_target_ip);
+                break;
+            default:
+                if (s_ping._current_target->_request_count == 0) {
+                    // move to next target
+                    s_ping._current_target = s_ping._current_target->next;
+                    if (s_ping._current_target == NULL) {
+                        quit(&s_ping, sockfd, 0);
+                    }
+                }
+                if (s_ping._current_target->_init == false) {
+                    if (resolve_dns(&s_ping, s_ping._current_target) == -1) {
+                        quit(&s_ping, sockfd, 1);
+                    } else {
+                        printf("Resolved %s to %s\n",
+                               s_ping._current_target->_target_name,
+                               s_ping._current_target->_target_ip);
+                        s_ping._current_target->_init = true;
+                    }
+                }
+
+                // send ping here
+                printf("Sending ping nbr %lu to %s (%s)\n",
+                       s_ping._current_target->_request_count,
+                       s_ping._current_target->_target_name,
+                       s_ping._current_target->_target_ip);
+
+                s_ping._current_target->_request_count--;
+            }
             v_alarm = 0;
             alarm(s_ping._settings._interval);
         }
@@ -76,6 +126,27 @@ int main(int argc, char **argv) {
     clear_targets(s_ping._targets);
 
     return 0;
+}
+
+static void quit(FT_PING *s_ping, int sockfd, int status) {
+    if (s_ping != NULL)
+        clear_targets(s_ping->_targets);
+    if (sockfd >= 0)
+        close(sockfd);
+    exit(status);
+}
+
+static void init_target(FT_PING *s_ping) {
+    if (s_ping == NULL)
+        return;
+
+    TARGET *target = s_ping->_targets;
+    while (target != NULL) {
+        target->_request_count = s_ping->_settings._count;
+        target->_init = false;
+        target = target->next;
+    }
+    s_ping->_current_target = s_ping->_targets;
 }
 
 /*

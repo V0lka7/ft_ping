@@ -66,10 +66,19 @@ typedef struct SOCKET_SETTING {
     ssize_t _timeout;
 } SOCKET_SETTING;
 
-typedef struct TARGET {
-    char target_name[NI_MAXHOST];
+typedef struct STATISTIC {
+    size_t _sent;
+    size_t _received;
+} STATISTIC;
 
-    size_t request_count;
+typedef struct TARGET {
+    char _target_name[NI_MAXHOST];
+    char _target_ip[INET_ADDRSTRLEN];
+
+    size_t _request_count;
+    bool _init;
+
+    STATISTIC _statistic;
 
     struct TARGET *next;
 } TARGET;
@@ -80,9 +89,15 @@ typedef struct FT_PING {
     SOCKET_SETTING _socket_settings;
 
     TARGET *_targets;
+    TARGET *_current_target;
 } FT_PING;
 
 void clear_targets(TARGET *targets);
+
+int resolve_dns(FT_PING *s_ping, TARGET *target);
+int dns_loopback(FT_PING *s_ping, TARGET *target);
+
+int create_socket(SOCKET_SETTING *settings);
 
 #endif
 
