@@ -1,4 +1,6 @@
 #include <argp.h>
+#include <float.h>
+#include <math.h>
 #include <netdb.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -45,6 +47,8 @@ static struct argp_option options_icmp_control[] = {
     {"usage", USAGE_OPT, 0, 0, "give a short usage message", 4},
     {0}};
 
+static double parse_double(struct argp_state *state, const char *arg,
+                           double min, double max);
 static unsigned long parse_number(struct argp_state *state, char *arg,
                                   unsigned long max);
 static void parse_pattern(FT_PING *s_ping, struct argp_state *state, char *arg);
@@ -81,10 +85,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'c':
         s_ping->_settings._count = (size_t)parse_number(state, arg, ULONG_MAX);
         break;
-    case 'i':
-        s_ping->_settings._interval =
-            (size_t)parse_number(state, arg, ULONG_MAX);
+    case 'i': {
+        double val = parse_double(state, arg, -DBL_MAX, DBL_MAX);
+
+        // root has no limit and negative values are converted to positive
+        if (s_ping->_settings._root) {
+            val = fabs(val);
+        } else if (val <= 0.1) {
+            // non-root users cannot set interval lower than 0.1s
+            argp_error(state, "option value too small: %s", arg);
+            error = -1;
+        }
+
+        s_ping->_settings._interval = val;
         break;
+    }
     case TTL_OPT:
         s_ping->_packet_settings._ttl =
             (uint8_t)parse_number(state, arg, MAX_TTL);
@@ -97,12 +112,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         s_ping->_settings._verbose = true;
         break;
     case 'w':
-        s_ping->_socket_settings._timeout =
-            (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->_settings._timeout = (ssize_t)parse_number(state, arg, INT_MAX);
         break;
     case 'W':
-        s_ping->_socket_settings._linger =
-            (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->_settings._linger = (ssize_t)parse_number(state, arg, INT_MAX);
         break;
 
     case 'p':
@@ -169,6 +182,34 @@ static unsigned long parse_number(struct argp_state *state, char *arg,
         argp_error(state, "option value too big: %s", arg); // exit the program
         error = -1;
     }
+    return val;
+}
+
+static double parse_double(struct argp_state *state, const char *arg,
+                           double min, double max) {
+    char *end = NULL;
+    double val;
+
+    if (arg == NULL || strlen(arg) == 0)
+        return 0.0;
+
+    errno = 0;
+    val = strtod(arg, &end);
+
+    if (end == arg || *end != '\0') {
+        argp_error(state, "invalid value (`%s' near `%s')", arg, end);
+        error = -1;
+    } else if (errno == ERANGE || !isfinite(val)) { /* rejects nan / inf too */
+        argp_error(state, "option value out of range: %s", arg);
+        error = -1;
+    } else if (val < min) {
+        argp_error(state, "option value too small: %s", arg);
+        error = -1;
+    } else if (val > max) {
+        argp_error(state, "option value too big: %s", arg);
+        error = -1;
+    }
+
     return val;
 }
 

@@ -58,9 +58,7 @@ int dns_loopback(FT_PING *s_ping, TARGET *target) {
     return -1;
 }
 
-int create_socket(SOCKET_SETTING *settings) {
-    if (settings == NULL)
-        return -1;
+int create_socket(PING_SETTING *settings) {
     int sockfd;
 
     if (!settings->_root) {
@@ -70,37 +68,17 @@ int create_socket(SOCKET_SETTING *settings) {
         sockfd = socket(AF_INET, SOCK_RAW | SOCK_NONBLOCK, IPPROTO_ICMP);
 
         if (sockfd < 0) {
-            perror("ping:");
+#ifdef DEBUG
+            perror("socket");
+#endif
             return -1;
         }
 
         // Drop privileges to root user to avoid security issues
         if (setgid(0) == -1 || setuid(0) == -1) {
-            perror("ping: setgid/setuid");
-            close(sockfd);
-            return -1;
-        }
-    }
-
-    if (settings->_timeout >= 0) {
-        struct timeval timeout;
-        timeout.tv_sec = settings->_timeout;
-        timeout.tv_usec = 0;
-        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-                       sizeof(timeout)) < 0) {
-            perror("ping: setsockopt SO_RCVTIMEO");
-            close(sockfd);
-            return -1;
-        }
-    }
-
-    if (settings->_linger >= 0) {
-        struct linger so_linger;
-        so_linger.l_onoff = 1;
-        so_linger.l_linger = settings->_linger;
-        if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &so_linger,
-                       sizeof(so_linger)) < 0) {
-            perror("setsockopt SO_LINGER");
+#ifdef DEBUG
+            perror("setgid/setuid");
+#endif
             close(sockfd);
             return -1;
         }

@@ -16,111 +16,137 @@
 // –type) are not considered as two bonuses
 //================================================================================
 
-// #include <netinet/in.h>
-// #include <sys/socket.h>
-
-// #include <stdio.h>
-
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/ip_icmp.h>
-#include <strings.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <unistd.h>
-
 #include "ft_ping.h"
 #include "src/initialization/arguments_parser.h"
 #include "src/signals_handler.h"
 
 #include <argp.h>
+#include <signal.h>
+#include <strings.h>
+#include <sys/signalfd.h>
+#include <sys/time.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
-static void quit(FT_PING *s_ping, int sockfd, int status);
+#include <sys/epoll.h>
+
+enum {
+    FD_SIG,            /* = 0, signalfd for SIGINT and SIGTERM */
+    FD_TIMER,          /* = 1, timerfd for sending packets */
+    FD_SOCKET,         /* = 2, send and receive */
+    FD_TIMEOUT,        /* = 3, timeout for the whole program */
+    FD_ANSWER_TIMEOUT, /* = 4, timeout for receiving answers */
+    FD_EPOLL,          /* = 5, epoll fd for monitoring all fds */
+    FD_COUNT           /* = 6, array size */
+};
+
+static int fd_list[FD_COUNT] = {-1, -1, -1, -1, -1, -1};
+
+#define MAX_EVENTS FD_COUNT
+
+static int init_signal_fd();
+static void fd_close_all(void);
+static int start_timerfd(double interval);
+static int ensure_dns_resolution(FT_PING *s_ping);
+static void quit(FT_PING *s_ping, int status, const char *str);
 static void init_target(FT_PING *s_ping);
 
 int main(int argc, char **argv) {
 
-    if (init_signals_handler() == -1)
-        return 1;
+    // if (init_signals_handler() == -1)
+    //     return 1;
 
     FT_PING s_ping = {
         ._settings = {._verbose = DEFAULT_VERBOSE,
                       ._quiet = DEFAULT_QUIET,
                       ._route = DEFAULT_ROUTE,
                       ._interval = DEFAULT_INTERVAL,
-                      ._count = DEFAULT_COUNT},
+                      ._count = DEFAULT_COUNT,
+                      ._root = DEFAULT_ROOT,
+                      ._linger = DEFAULT_LINGER,
+                      ._timeout = DEFAULT_TIMEOUT},
         ._packet_settings = {._tos = DEFAULT_TOS,
                              ._ttl = DEFAULT_TTL,
                              ._route = DEFAULT_ROUTE,
                              ._icmp_type = DEFAULT_TYPE,
-                             ._payload_size = DEFAULT_PAYLOAD_SIZE},
-        ._socket_settings = {._root = DEFAULT_ROOT,
-                             ._linger = DEFAULT_LINGER,
-                             ._timeout = DEFAULT_TIMEOUT},
-    };
+                             ._payload_size = DEFAULT_PAYLOAD_SIZE}};
 
     bzero(s_ping._packet_settings._pattern,
           sizeof(s_ping._packet_settings._pattern));
-    s_ping._socket_settings._root = geteuid() == 0;
+    s_ping._settings._root = geteuid() == 0;
 
-    if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0)
+    if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0) {
         return 1;
+    }
+    return 0;
 
+    /* Initialize socket file descriptor, first to drop the root privileges */
+    fd_list[FD_SOCKET] = create_socket(&s_ping._settings);
+    if (fd_list[FD_SOCKET] == -1)
+        quit(&s_ping, 1, "create_socket");
+
+    /* Initialize target list */
     init_target(&s_ping);
 
-    int sockfd = create_socket(&s_ping._socket_settings);
-    close(sockfd);
+    /* Initialize signal file descriptor */
+    fd_list[FD_SIG] = init_signal_fd();
+    if (fd_list[FD_SIG] == -1)
+        quit(&s_ping, 1, "init_signal_fd");
 
-    while (v_quit) {
-        if (v_alarm) {
-            // printf("Sig alarm triggered!\n");
+    /* Initialize timer file descriptor */
+    fd_list[FD_TIMER] = start_timerfd(s_ping._settings._interval);
+    if (fd_list[FD_TIMER] == -1) {
+        quit(&s_ping, 1, "start_timerfd");
+        return 1;
+    }
+    /* Initialize epoll file descriptor */
+    fd_list[FD_EPOLL] = epoll_create1(EPOLL_CLOEXEC);
+    if (fd_list[FD_EPOLL] == -1) {
+        quit(&s_ping, 1, "epoll_create1");
+        return 1;
+    }
 
-            switch (s_ping._settings._count) {
-            case 0:
-                if (resolve_dns(&s_ping, s_ping._current_target) == -1) {
-                    quit(&s_ping, sockfd, 1);
-                } else {
-                    printf("Resolved %s to %s\n",
-                           s_ping._current_target->_target_name,
-                           s_ping._current_target->_target_ip);
-                    s_ping._current_target->_init = true;
-                }
-                // infinite requests, do nothing
-                printf("Sending ping to %s (%s)\n",
-                       s_ping._current_target->_target_name,
-                       s_ping._current_target->_target_ip);
-                break;
-            default:
-                if (s_ping._current_target->_request_count == 0) {
-                    // move to next target
-                    s_ping._current_target = s_ping._current_target->next;
-                    if (s_ping._current_target == NULL) {
-                        quit(&s_ping, sockfd, 0);
-                    }
-                }
-                if (s_ping._current_target->_init == false) {
-                    if (resolve_dns(&s_ping, s_ping._current_target) == -1) {
-                        quit(&s_ping, sockfd, 1);
-                    } else {
-                        printf("Resolved %s to %s\n",
-                               s_ping._current_target->_target_name,
-                               s_ping._current_target->_target_ip);
-                        s_ping._current_target->_init = true;
-                    }
-                }
-
-                // send ping here
-                printf("Sending ping nbr %lu to %s (%s)\n",
-                       s_ping._current_target->_request_count,
-                       s_ping._current_target->_target_name,
-                       s_ping._current_target->_target_ip);
-
-                s_ping._current_target->_request_count--;
-            }
-            v_alarm = 0;
-            alarm(s_ping._settings._interval);
+    /* Initialize timeout file descriptor */
+    if (s_ping._settings._timeout > -1) {
+        fd_list[FD_TIMEOUT] = start_timerfd(s_ping._settings._timeout);
+        if (fd_list[FD_TIMEOUT] == -1) {
+            quit(&s_ping, 1, "start_timerfd");
+            return 1;
         }
-        usleep(10);
+    }
+
+    /* Initialize timeout file descriptor for answer timeout */
+    if (s_ping._settings._linger > -1) {
+        fd_list[FD_ANSWER_TIMEOUT] = start_timerfd(s_ping._settings._linger);
+        if (fd_list[FD_ANSWER_TIMEOUT] == -1) {
+            quit(&s_ping, 1, "start_timerfd");
+            return 1;
+        }
+    }
+
+    struct epoll_event ev, events[MAX_EVENTS];
+
+    int nfds = -1;
+    while (v_quit) {
+        nfds = epoll_wait(fd_list[FD_EPOLL], events, MAX_EVENTS, -1);
+
+        if (s_ping._settings._count != 0) {
+            if (s_ping._current_target->_request_count == 0) {
+                // move to next target
+                s_ping._current_target = s_ping._current_target->next;
+                if (s_ping._current_target == NULL) {
+                    quit(&s_ping, 0, "");
+                }
+            }
+            s_ping._current_target->_request_count--;
+        }
+        if (ensure_dns_resolution(&s_ping) == -1) {
+            quit(&s_ping, 1, "ensure_dns_resolution");
+        }
+        printf("PING %s (%s): %zu data bytes\n",
+               s_ping._current_target->_target_name,
+               s_ping._current_target->_target_ip,
+               s_ping._packet_settings._payload_size);
     }
 
     clear_targets(s_ping._targets);
@@ -128,18 +154,85 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-static void quit(FT_PING *s_ping, int sockfd, int status) {
+static int init_signal_fd() {
+    sigset_t mask;
+    int signal_fd;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+
+    if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1)
+        return -1;
+    signal_fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (signal_fd == -1)
+        return -1;
+    return signal_fd;
+}
+
+static void fd_close_all(void) {
+    for (int i = 0; i < FD_COUNT; i++) {
+        if (fd_list[i] >= 0) {
+            close(fd_list[i]);
+            fd_list[i] = -1;
+        }
+    }
+}
+
+static int start_timerfd(double interval) {
+    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (tfd == -1)
+        return -1;
+
+    time_t sec = (time_t)interval;
+    long nsec = (long)((interval - (double)sec) * 1e9);
+
+    /* {0,0} would DISARM the timer: clamp to 1 ns */
+    if (sec == 0 && nsec < 1)
+        nsec = 1;
+
+    struct itimerspec its = {
+        .it_value = {sec, nsec},    /* first tick */
+        .it_interval = {sec, nsec}, /* then repeats */
+    };
+    if (timerfd_settime(tfd, 0, &its, NULL) == -1) {
+        close(tfd);
+        return -1;
+    }
+    return tfd;
+}
+
+static int ensure_dns_resolution(FT_PING *s_ping) {
+    if (s_ping == NULL)
+        return -1;
+
+    if (s_ping->_current_target == NULL)
+        return -1;
+
+    if (s_ping->_current_target->_init == false) {
+        if (resolve_dns(s_ping, s_ping->_current_target) == -1) {
+            return -1;
+        } else {
+            printf("Resolved %s to %s\n", s_ping->_current_target->_target_name,
+                   s_ping->_current_target->_target_ip);
+            s_ping->_current_target->_init = true;
+        }
+    }
+    return 0;
+}
+
+static void quit(FT_PING *s_ping, int status, const char *str) {
+    if (errno != 0) {
+#ifdef DEBUG
+        perror(str);
+#endif
+    }
     if (s_ping != NULL)
         clear_targets(s_ping->_targets);
-    if (sockfd >= 0)
-        close(sockfd);
+    fd_close_all();
     exit(status);
 }
 
 static void init_target(FT_PING *s_ping) {
-    if (s_ping == NULL)
-        return;
-
     TARGET *target = s_ping->_targets;
     while (target != NULL) {
         target->_request_count = s_ping->_settings._count;
@@ -306,8 +399,8 @@ struct sockaddr *get_ipv4_node(struct addrinfo *list) {
 }
 
 static int Getaddrinfo(const char *node, const char *service,
-                       const struct addrinfo *hints, struct addrinfo **res) {
-  int ret = getaddrinfo(node, service, hints, res);
+                       const struct addrinfo *hints, struct addrinfo **res)
+{ int ret = getaddrinfo(node, service, hints, res);
 
   if (ret != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
@@ -319,7 +412,8 @@ static int Getaddrinfo(const char *node, const char *service,
 // static int Getnameinfo(const struct sockaddr *addr, socklen_t addrlen,
 //                        char *host, socklen_t hostlen, char *serv,
 //                        socklen_t servlen, int flags) {
-//   int ret = getnameinfo(addr, addrlen, host, hostlen, serv, servlen, flags);
+//   int ret = getnameinfo(addr, addrlen, host, hostlen, serv, servlen,
+//   flags);
 
 //   if (ret != 0) {
 //     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));

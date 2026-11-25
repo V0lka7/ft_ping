@@ -3,8 +3,10 @@
 #include "initialization/arguments_parser.h"
 
 #include <argp.h>
+#include <math.h>
 #include <strings.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 static FT_PING *s_ping = NULL;
 
@@ -26,9 +28,9 @@ static void setup(void *data) {
 
     bzero(&(s_ping->_packet_settings._pattern), PATTERN_SIZE);
 
-    s_ping->_socket_settings._root = DEFAULT_ROOT;
-    s_ping->_socket_settings._linger = DEFAULT_LINGER;
-    s_ping->_socket_settings._timeout = DEFAULT_TIMEOUT;
+    s_ping->_settings._root = geteuid() == 0;
+    s_ping->_settings._linger = DEFAULT_LINGER;
+    s_ping->_settings._timeout = DEFAULT_TIMEOUT;
 
     s_ping->_targets = NULL;
 }
@@ -66,8 +68,8 @@ TEST test_defaults_untouched(void) {
     ASSERT_EQ(DEFAULT_ROUTE, s_ping->_packet_settings._route);
     ASSERT_EQ(ECHO, s_ping->_packet_settings._icmp_type);
     ASSERT_EQ(DEFAULT_PAYLOAD_SIZE, s_ping->_packet_settings._payload_size);
-    ASSERT_EQ(DEFAULT_LINGER, s_ping->_socket_settings._linger);
-    ASSERT_EQ(DEFAULT_TIMEOUT, s_ping->_socket_settings._timeout);
+    ASSERT_EQ(DEFAULT_LINGER, s_ping->_settings._linger);
+    ASSERT_EQ(DEFAULT_TIMEOUT, s_ping->_settings._timeout);
     PASS();
 }
 
@@ -129,7 +131,7 @@ TEST test_target_single(void) {
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     ASSERT(s_ping->_targets != NULL);
-    ASSERT_STR_EQ("test.com", s_ping->_targets->target_name);
+    ASSERT_STR_EQ("test.com", s_ping->_targets->_target_name);
     ASSERT(s_ping->_targets->next == NULL);
     PASS();
 }
@@ -144,7 +146,7 @@ TEST test_target_multiple(void) {
     node = s_ping->_targets;
     for (int i = 0; i < 3; i++) {
         ASSERT(node != NULL);
-        ASSERT_STR_EQ(expected[i], node->target_name);
+        ASSERT_STR_EQ(expected[i], node->_target_name);
         node = node->next;
     }
     ASSERT(node == NULL);
@@ -158,12 +160,12 @@ TEST test_target_option_after_host(void) {
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     ASSERT_EQ(true, s_ping->_settings._verbose);
     ASSERT(s_ping->_targets != NULL);
-    ASSERT_STR_EQ("test.com", s_ping->_targets->target_name);
+    ASSERT_STR_EQ("test.com", s_ping->_targets->_target_name);
     ASSERT(s_ping->_targets->next == NULL);
     PASS();
 }
 
-TEST test_target_name_truncated(void) {
+TEST test__target_name_truncated(void) {
     char long_host[NI_MAXHOST + 50];
 
     memset(long_host, 'a', sizeof(long_host) - 1);
@@ -174,7 +176,7 @@ TEST test_target_name_truncated(void) {
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
     ASSERT(s_ping->_targets != NULL);
-    ASSERT_EQ((size_t)(NI_MAXHOST - 1), strlen(s_ping->_targets->target_name));
+    ASSERT_EQ((size_t)(NI_MAXHOST - 1), strlen(s_ping->_targets->_target_name));
     PASS();
 }
 
@@ -397,7 +399,11 @@ TEST test_interval_complete_cmd_empty(void) {
     char *argv[] = {"ft_ping", "--interval", "", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    if (s_ping->_settings._root) {
+        ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    } else {
+        ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    }
     PASS();
 }
 
@@ -438,8 +444,12 @@ TEST test_interval_valid_number_2(void) {
     char *argv[] = {"ft_ping", "--interval", "-20", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
+    if (s_ping->_settings._root) {
+        ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+        ASSERT_EQ((double)fabs(-20.0), s_ping->_settings._interval);
+    } else {
+        ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    }
     PASS();
 }
 
@@ -447,8 +457,12 @@ TEST test_interval_valid_number_3(void) {
     char *argv[] = {"ft_ping", "-i", "-20", "test.com", NULL};
     int argc = tab_len(argv);
 
-    ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ((size_t)strtoul("-20", NULL, 10), s_ping->_settings._interval);
+    if (s_ping->_settings._root) {
+        ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+        ASSERT_EQ((double)fabs(-20.0), s_ping->_settings._interval);
+    } else {
+        ASSERT_NEQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
+    }
     PASS();
 }
 
@@ -705,7 +719,7 @@ TEST test_timeout_valid_1(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(10, s_ping->_socket_settings._timeout);
+    ASSERT_EQ(10, s_ping->_settings._timeout);
     PASS();
 }
 
@@ -714,7 +728,7 @@ TEST test_timeout_valid_2(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(0, s_ping->_socket_settings._timeout);
+    ASSERT_EQ(0, s_ping->_settings._timeout);
     PASS();
 }
 
@@ -723,7 +737,7 @@ TEST test_timeout_valid_int_max(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(INT_MAX, s_ping->_socket_settings._timeout);
+    ASSERT_EQ(INT_MAX, s_ping->_settings._timeout);
     PASS();
 }
 
@@ -776,7 +790,7 @@ TEST test_linger_valid_1(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(10, s_ping->_socket_settings._linger);
+    ASSERT_EQ(10, s_ping->_settings._linger);
     PASS();
 }
 
@@ -785,7 +799,7 @@ TEST test_linger_valid_2(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(0, s_ping->_socket_settings._linger);
+    ASSERT_EQ(0, s_ping->_settings._linger);
     PASS();
 }
 
@@ -794,7 +808,7 @@ TEST test_linger_valid_int_max(void) {
     int argc = tab_len(argv);
 
     ASSERT_EQ(0, argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, s_ping));
-    ASSERT_EQ(INT_MAX, s_ping->_socket_settings._linger);
+    ASSERT_EQ(INT_MAX, s_ping->_settings._linger);
     PASS();
 }
 
@@ -1043,14 +1057,14 @@ TEST test_combined_options_valid(void) {
     ASSERT_EQ(true, s_ping->_settings._quiet);
     ASSERT_EQ(42, s_ping->_packet_settings._ttl);
     ASSERT_EQ(8, s_ping->_packet_settings._tos);
-    ASSERT_EQ(30, s_ping->_socket_settings._timeout);
-    ASSERT_EQ(5, s_ping->_socket_settings._linger);
+    ASSERT_EQ(30, s_ping->_settings._timeout);
+    ASSERT_EQ(5, s_ping->_settings._linger);
     ASSERT_EQ(true, s_ping->_settings._route);
     ASSERT_EQ(true, s_ping->_packet_settings._route);
     ASSERT_STR_EQ("ff", (char *)s_ping->_packet_settings._pattern);
     ASSERT_EQ(TIMESTAMP, s_ping->_packet_settings._icmp_type);
     ASSERT(s_ping->_targets != NULL);
-    ASSERT_STR_EQ("test.com", s_ping->_targets->target_name);
+    ASSERT_STR_EQ("test.com", s_ping->_targets->_target_name);
     PASS();
 }
 
@@ -1077,7 +1091,7 @@ SUITE(arguments_parser_suite) {
     RUN_TEST(test_target_single);
     RUN_TEST(test_target_multiple);
     RUN_TEST(test_target_option_after_host);
-    RUN_TEST(test_target_name_truncated);
+    RUN_TEST(test__target_name_truncated);
 
     // Type tests
     RUN_TEST(test_echo_type);

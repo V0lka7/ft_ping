@@ -459,3 +459,9 @@ my ping
 0405 0607 0809 0A0B 0C0D 0E0F 1011 1213
 1415 1617 1819 1A1B 1C1D 1E1F 2021 2223
 2425 2627
+
+- fd de gestion du sigint
+- fd de timer pour envoyer les requêtes en continu
+- fd de la socket pour envoyer et lire les requêtes ICMP
+- fd de timer de timout pour le (-w)
+- fd de timer pour timeout la reponse de la dernière requête (-W)
