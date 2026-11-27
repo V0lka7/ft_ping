@@ -8,21 +8,24 @@
 #include <stdlib.h>
 
 #include "protocols/ft_icmp.h"
+#include "protocols/ft_ip.h"
+
+#define MAX_SEQ 65536
 
 typedef enum PACKET_TYPE { ECHO, TIMESTAMP } PACKET_TYPE;
 
 typedef struct PACKET_SETTING {
 
 #define DEFAULT_TOS 0
-#define DEFAULT_TTL IPDEFTTL // 64
-#define DEFAULT_ROUTE 0      // false
-#define DEFAULT_TYPE 0       // ECHO
+#define DEFAULT_TTL 63
+#define DEFAULT_ROUTE 0 // false
+#define DEFAULT_TYPE 0  // ECHO
 #define DEFAULT_PAYLOAD_SIZE 56
 
 #define MAX_TTL 255
 #define MAX_TOS 255
 #define MAX_PAYLOAD_SIZE                                                       \
-    IP_MAXPACKET - (MAX_IP_HDR_LEN + MAX_ICMP_HDR_LEN) // 65535 - 76
+    IP_MAXPACKET - (IP_MAX_HDR_LEN + ICMP_MAX_HDR_LEN) // 65535 - (60 + 16)
 
 #define PATTERN_SIZE 16
 
@@ -62,33 +65,48 @@ typedef struct PING_SETTING {
 typedef struct STATISTIC {
     size_t _sent;
     size_t _received;
+    size_t _duplicates;
+    double _min_rtt;
+    double _max_rtt;
 } STATISTIC;
 
 typedef struct TARGET {
     char _target_name[NI_MAXHOST];
     char _target_ip[INET_ADDRSTRLEN];
+    struct sockaddr_in s_dest;
 
-    size_t _request_count;
+    size_t _seq;
     bool _init;
+    bool _route_showed;
 
-    STATISTIC _statistic;
+    STATISTIC s_statistic;
 
-    struct TARGET *next;
+    struct TARGET *_next;
 } TARGET;
 
 typedef struct FT_PING {
-    PING_SETTING _settings;
-    PACKET_SETTING _packet_settings;
+    PING_SETTING s_settings;
+    PACKET_SETTING s_packet_settings;
 
-    TARGET *_targets;
-    TARGET *_current_target;
+    uint8_t _packet[IP_MAXPACKET];
+    uint8_t *_ip_header;
+    uint8_t *_icmp_header;
+
+    TARGET *s_targets;
+    TARGET *s_current_target;
+    uint8_t _received[MAX_SEQ / 8]; // Bit array to track received packets
 } FT_PING;
 
-void clear_targets(TARGET *targets);
+void clears_targets(TARGET *targets);
 
 int resolve_dns(FT_PING *s_ping, TARGET *target);
 int dns_loopback(FT_PING *s_ping, TARGET *target);
 
-int create_socket(PING_SETTING *settings);
+int create_socket(FT_PING *settings);
+
+int create_target_packet(FT_PING *s_ping);
+int send_packet(int sockfd, FT_PING *s_ping);
+
+void read_reply(FT_PING *s_ping, int sockfd);
 
 #endif

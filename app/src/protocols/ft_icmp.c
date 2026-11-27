@@ -57,8 +57,9 @@ int set_icmp_data(uint8_t *packet, const size_t packet_len,
 int set_icmp_timeval(uint8_t *packet, const size_t packet_len) {
     if (packet == NULL || packet_len < sizeof(struct timeval))
         return -1;
-    struct timeval *time = (struct timeval *)packet;
-    gettimeofday(time, NULL);
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    memcpy(packet, &now, sizeof(now));
     return 0;
 }
 

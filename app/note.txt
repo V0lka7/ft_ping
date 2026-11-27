@@ -465,3 +465,7 @@ my ping
 - fd de la socket pour envoyer et lire les requêtes ICMP
 - fd de timer de timout pour le (-w)
 - fd de timer pour timeout la reponse de la dernière requête (-W)
+
+
+ok so i need to recv the data. No not recv it firstly, take it into a buffer.
+

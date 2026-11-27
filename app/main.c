@@ -18,17 +18,17 @@
 
 #include "ft_ping.h"
 #include "src/initialization/arguments_parser.h"
-#include "src/signals_handler.h"
 
 #include <argp.h>
 #include <signal.h>
-#include <strings.h>
+#include <string.h>
 #include <sys/signalfd.h>
-#include <sys/time.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
 
 #include <sys/epoll.h>
+
+volatile int v_quit = 1;
 
 enum {
     FD_SIG,            /* = 0, signalfd for SIGINT and SIGTERM */
@@ -42,10 +42,11 @@ enum {
 
 static int fd_list[FD_COUNT] = {-1, -1, -1, -1, -1, -1};
 
-#define MAX_EVENTS FD_COUNT
-
+static void send_next_packet(FT_PING *s_ping);
+static bool init_epoll_event(int fd, uint32_t events, struct epoll_event *ev);
 static int init_signal_fd();
 static void fd_close_all(void);
+static int stop_timerfd(int tfd);
 static int start_timerfd(double interval);
 static int ensure_dns_resolution(FT_PING *s_ping);
 static void quit(FT_PING *s_ping, int status, const char *str);
@@ -57,31 +58,30 @@ int main(int argc, char **argv) {
     //     return 1;
 
     FT_PING s_ping = {
-        ._settings = {._verbose = DEFAULT_VERBOSE,
-                      ._quiet = DEFAULT_QUIET,
-                      ._route = DEFAULT_ROUTE,
-                      ._interval = DEFAULT_INTERVAL,
-                      ._count = DEFAULT_COUNT,
-                      ._root = DEFAULT_ROOT,
-                      ._linger = DEFAULT_LINGER,
-                      ._timeout = DEFAULT_TIMEOUT},
-        ._packet_settings = {._tos = DEFAULT_TOS,
-                             ._ttl = DEFAULT_TTL,
-                             ._route = DEFAULT_ROUTE,
-                             ._icmp_type = DEFAULT_TYPE,
-                             ._payload_size = DEFAULT_PAYLOAD_SIZE}};
+        .s_settings = {._verbose = DEFAULT_VERBOSE,
+                       ._quiet = DEFAULT_QUIET,
+                       ._route = DEFAULT_ROUTE,
+                       ._interval = DEFAULT_INTERVAL,
+                       ._count = DEFAULT_COUNT,
+                       ._root = DEFAULT_ROOT,
+                       ._linger = DEFAULT_LINGER,
+                       ._timeout = DEFAULT_TIMEOUT},
+        .s_packet_settings = {._tos = DEFAULT_TOS,
+                              ._ttl = DEFAULT_TTL,
+                              ._route = DEFAULT_ROUTE,
+                              ._icmp_type = DEFAULT_TYPE,
+                              ._payload_size = DEFAULT_PAYLOAD_SIZE}};
 
-    bzero(s_ping._packet_settings._pattern,
-          sizeof(s_ping._packet_settings._pattern));
-    s_ping._settings._root = geteuid() == 0;
+    bzero(s_ping.s_packet_settings._pattern,
+          sizeof(s_ping.s_packet_settings._pattern));
+    s_ping.s_settings._root = geteuid() == 0;
 
     if (argp_parse(&g_argp, argc, argv, ARGP_NO_EXIT, 0, &s_ping) != 0) {
         return 1;
     }
-    return 0;
 
     /* Initialize socket file descriptor, first to drop the root privileges */
-    fd_list[FD_SOCKET] = create_socket(&s_ping._settings);
+    fd_list[FD_SOCKET] = create_socket(&s_ping);
     if (fd_list[FD_SOCKET] == -1)
         quit(&s_ping, 1, "create_socket");
 
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
         quit(&s_ping, 1, "init_signal_fd");
 
     /* Initialize timer file descriptor */
-    fd_list[FD_TIMER] = start_timerfd(s_ping._settings._interval);
+    fd_list[FD_TIMER] = start_timerfd(s_ping.s_settings._interval);
     if (fd_list[FD_TIMER] == -1) {
         quit(&s_ping, 1, "start_timerfd");
         return 1;
@@ -106,52 +106,147 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* Initialize timeout file descriptor */
-    if (s_ping._settings._timeout > -1) {
-        fd_list[FD_TIMEOUT] = start_timerfd(s_ping._settings._timeout);
+    /* Initialize timeout file descriptor (-w) */
+    if (s_ping.s_settings._timeout > -1) {
+        fd_list[FD_TIMEOUT] = start_timerfd(s_ping.s_settings._timeout);
         if (fd_list[FD_TIMEOUT] == -1) {
             quit(&s_ping, 1, "start_timerfd");
             return 1;
         }
     }
 
-    /* Initialize timeout file descriptor for answer timeout */
-    if (s_ping._settings._linger > -1) {
-        fd_list[FD_ANSWER_TIMEOUT] = start_timerfd(s_ping._settings._linger);
+    /* Initialize timeout file descriptor for answer timeout (-W) */
+    if (s_ping.s_settings._linger > -1) {
+        fd_list[FD_ANSWER_TIMEOUT] = start_timerfd(s_ping.s_settings._linger);
         if (fd_list[FD_ANSWER_TIMEOUT] == -1) {
             quit(&s_ping, 1, "start_timerfd");
             return 1;
         }
     }
 
-    struct epoll_event ev, events[MAX_EVENTS];
+    struct epoll_event ev, events[FD_COUNT];
+    bool ok = true;
+    for (int i = 0; i < FD_COUNT; i++) {
+        if (fd_list[i] == -1 || i == FD_EPOLL)
+            continue;
+        ok &= init_epoll_event(i, EPOLLIN, &ev);
+    }
+    if (!ok) {
+        quit(&s_ping, 1, "init_epoll_event");
+        return 1;
+    }
+
+    // Send the first packet immediately
+    if (ensure_dns_resolution(&s_ping) == -1) {
+        quit(&s_ping, 1, "ensure_dns_resolution");
+    }
+    if (create_target_packet(&s_ping) == -1) {
+        quit(&s_ping, 1, "create_target_packet");
+    }
+    if (send_packet(fd_list[FD_SOCKET], &s_ping) == -1) {
+        quit(&s_ping, 1, "send_packet");
+    }
 
     int nfds = -1;
     while (v_quit) {
-        nfds = epoll_wait(fd_list[FD_EPOLL], events, MAX_EVENTS, -1);
+        nfds = epoll_wait(fd_list[FD_EPOLL], events, FD_COUNT, -1);
 
-        if (s_ping._settings._count != 0) {
-            if (s_ping._current_target->_request_count == 0) {
-                // move to next target
-                s_ping._current_target = s_ping._current_target->next;
-                if (s_ping._current_target == NULL) {
-                    quit(&s_ping, 0, "");
+        if (nfds == -1)
+            quit(&s_ping, 1, "epoll_wait");
+
+        for (int i = 0; i < nfds; i++) {
+            switch (events[i].data.u32) {
+
+            /* Handle signals */
+            case FD_SIG: {
+                struct signalfd_siginfo fdsi;
+                ssize_t s = read(fd_list[FD_SIG], &fdsi, sizeof(fdsi));
+                if (s != sizeof(fdsi)) {
+                    quit(&s_ping, 1, "read");
                 }
+                if (fdsi.ssi_signo == SIGINT || fdsi.ssi_signo == SIGTERM) {
+                    v_quit = 0;
+                }
+                break;
             }
-            s_ping._current_target->_request_count--;
+
+            /* Send next packet */
+            case FD_TIMER: {
+                uint64_t expirations;
+                if (read(fd_list[FD_TIMER], &expirations,
+                         sizeof(expirations)) == sizeof(expirations))
+                    send_next_packet(&s_ping);
+                break;
+            }
+
+            case FD_TIMEOUT:
+                /* read() the timerfd, stop after -w seconds */
+                break;
+            case FD_SOCKET:
+                // read_reply(&s_ping, fd_list[FD_SOCKET]);
+                // break;
+                break;
+            case FD_ANSWER_TIMEOUT:
+                /* read() the timerfd, handle the missing reply */
+                break;
+            }
         }
-        if (ensure_dns_resolution(&s_ping) == -1) {
-            quit(&s_ping, 1, "ensure_dns_resolution");
-        }
-        printf("PING %s (%s): %zu data bytes\n",
-               s_ping._current_target->_target_name,
-               s_ping._current_target->_target_ip,
-               s_ping._packet_settings._payload_size);
     }
 
-    clear_targets(s_ping._targets);
+    clears_targets(s_ping.s_targets);
+    fd_close_all();
 
     return 0;
+}
+
+static void send_next_packet(FT_PING *s_ping) {
+    if (s_ping->s_current_target->_init == false) {
+        if (ensure_dns_resolution(s_ping) == -1) {
+            quit(s_ping, 1, "ensure_dns_resolution");
+        }
+        if (create_target_packet(s_ping) == -1) {
+            quit(s_ping, 1, "create_target_packet");
+        }
+    }
+
+    if (send_packet(fd_list[FD_SOCKET], s_ping) == -1) {
+        quit(s_ping, 1, "send_packet");
+    }
+
+    printf("count = %zu\n", s_ping->s_settings._count);
+    if (s_ping->s_settings._count != 0) {
+        if (s_ping->s_current_target->s_statistic._sent ==
+            s_ping->s_settings._count - 1) {
+            // move to next target
+            printf("moving to next target\n");
+            s_ping->s_current_target = s_ping->s_current_target->_next;
+            if (s_ping->s_current_target == NULL) {
+                // stop the timerfd to prevent further packet sending
+                stop_timerfd(fd_list[FD_TIMER]);
+            }
+        } else {
+            s_ping->s_current_target->s_statistic._sent++;
+            s_ping->s_current_target->_seq++;
+        }
+    } else {
+        s_ping->s_current_target->s_statistic._sent++;
+        s_ping->s_current_target->_seq++;
+    }
+}
+
+static bool init_epoll_event(int idx, uint32_t events, struct epoll_event *ev) {
+    int fd = fd_list[idx];
+
+    if (ev == NULL)
+        return false;
+
+    ev->events = events;
+    ev->data.u32 = (uint32_t)idx;
+
+    if (epoll_ctl(fd_list[FD_EPOLL], EPOLL_CTL_ADD, fd, ev) == -1) {
+        return false;
+    }
+    return true;
 }
 
 static int init_signal_fd() {
@@ -201,45 +296,58 @@ static int start_timerfd(double interval) {
     return tfd;
 }
 
+static int stop_timerfd(int tfd) {
+    struct itimerspec zero = {0};
+    return timerfd_settime(tfd, 0, &zero, NULL);
+}
+
 static int ensure_dns_resolution(FT_PING *s_ping) {
     if (s_ping == NULL)
         return -1;
 
-    if (s_ping->_current_target == NULL)
+    if (s_ping->s_current_target == NULL)
         return -1;
 
-    if (s_ping->_current_target->_init == false) {
-        if (resolve_dns(s_ping, s_ping->_current_target) == -1) {
+    if (s_ping->s_current_target->_init == false) {
+        int ret = resolve_dns(s_ping, s_ping->s_current_target);
+        if (ret == -1) {
             return -1;
+        } else if (ret == 0) {
+            printf("Resolved %s to %s\n",
+                   s_ping->s_current_target->_target_name,
+                   s_ping->s_current_target->_target_ip);
+            s_ping->s_current_target->_init = true;
         } else {
-            printf("Resolved %s to %s\n", s_ping->_current_target->_target_name,
-                   s_ping->_current_target->_target_ip);
-            s_ping->_current_target->_init = true;
+            v_quit = 0;
         }
     }
     return 0;
 }
 
 static void quit(FT_PING *s_ping, int status, const char *str) {
-    if (errno != 0) {
 #ifdef DEBUG
+    if (errno != 0) {
         perror(str);
-#endif
     }
+#else
+    (void)str;
+#endif
     if (s_ping != NULL)
-        clear_targets(s_ping->_targets);
+        clears_targets(s_ping->s_targets);
     fd_close_all();
     exit(status);
 }
 
 static void init_target(FT_PING *s_ping) {
-    TARGET *target = s_ping->_targets;
+    TARGET *target = s_ping->s_targets;
     while (target != NULL) {
-        target->_request_count = s_ping->_settings._count;
+        target->_seq = 0;
         target->_init = false;
-        target = target->next;
+        target = target->_next;
     }
-    s_ping->_current_target = s_ping->_targets;
+    s_ping->s_current_target = s_ping->s_targets;
+    memset(&s_ping->s_current_target->s_statistic, 0, sizeof(STATISTIC));
+    s_ping->s_current_target->_route_showed = false;
 }
 
 /*

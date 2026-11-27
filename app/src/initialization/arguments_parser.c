@@ -65,16 +65,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
     switch (key) {
     case ECHO_OPT:
-        s_ping->_packet_settings._icmp_type = ECHO;
+        s_ping->s_packet_settings._icmp_type = ECHO;
         break;
     case TIMESTAMP_OPT:
-        s_ping->_packet_settings._icmp_type = TIMESTAMP;
+        s_ping->s_packet_settings._icmp_type = TIMESTAMP;
         break;
     case 't': {
         if (strcmp(arg, "echo") == 0)
-            s_ping->_packet_settings._icmp_type = ECHO;
+            s_ping->s_packet_settings._icmp_type = ECHO;
         else if (strcmp(arg, "timestamp") == 0)
-            s_ping->_packet_settings._icmp_type = TIMESTAMP;
+            s_ping->s_packet_settings._icmp_type = TIMESTAMP;
         else {
             argp_error(state, "Unsupported packet type: %s", arg);
             error = -1;
@@ -83,13 +83,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     }
 
     case 'c':
-        s_ping->_settings._count = (size_t)parse_number(state, arg, ULONG_MAX);
+        s_ping->s_settings._count = (size_t)parse_number(state, arg, ULONG_MAX);
         break;
     case 'i': {
         double val = parse_double(state, arg, -DBL_MAX, DBL_MAX);
 
         // root has no limit and negative values are converted to positive
-        if (s_ping->_settings._root) {
+        if (s_ping->s_settings._root) {
             val = fabs(val);
         } else if (val <= 0.1) {
             // non-root users cannot set interval lower than 0.1s
@@ -97,39 +97,40 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             error = -1;
         }
 
-        s_ping->_settings._interval = val;
+        s_ping->s_settings._interval = val;
         break;
     }
     case TTL_OPT:
-        s_ping->_packet_settings._ttl =
+        s_ping->s_packet_settings._ttl =
             (uint8_t)parse_number(state, arg, MAX_TTL);
         break;
     case 'T':
-        s_ping->_packet_settings._tos =
+        s_ping->s_packet_settings._tos =
             (uint8_t)parse_number(state, arg, MAX_TOS);
         break;
     case 'v':
-        s_ping->_settings._verbose = true;
+        s_ping->s_settings._verbose = true;
         break;
     case 'w':
-        s_ping->_settings._timeout = (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->s_settings._timeout =
+            (ssize_t)parse_number(state, arg, INT_MAX);
         break;
     case 'W':
-        s_ping->_settings._linger = (ssize_t)parse_number(state, arg, INT_MAX);
+        s_ping->s_settings._linger = (ssize_t)parse_number(state, arg, INT_MAX);
         break;
 
     case 'p':
         parse_pattern(s_ping, state, arg);
         break;
     case 'q':
-        s_ping->_settings._quiet = true;
+        s_ping->s_settings._quiet = true;
         break;
     case 'R':
-        s_ping->_settings._route = true;
-        s_ping->_packet_settings._route = true;
+        s_ping->s_settings._route = true;
+        s_ping->s_packet_settings._route = true;
         break;
     case 's':
-        s_ping->_packet_settings._payload_size =
+        s_ping->s_packet_settings._payload_size =
             (size_t)parse_number(state, arg, MAX_PAYLOAD_SIZE);
         break;
 
@@ -143,7 +144,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         break;
 
     case ARGP_KEY_ARGS:
-        if (create_target_list(&s_ping->_targets, state) == -1) {
+        if (create_target_list(&s_ping->s_targets, state) == -1) {
             argp_error(state, "unexpected error");
             error = -1;
         }
@@ -216,7 +217,7 @@ static double parse_double(struct argp_state *state, const char *arg,
 static void parse_pattern(FT_PING *s_ping, struct argp_state *state,
                           char *arg) {
 
-    char *ptr = (char *)s_ping->_packet_settings._pattern;
+    char *ptr = (char *)s_ping->s_packet_settings._pattern;
 
     if (strlen(arg) == 0) {
         memset(ptr, '0', PATTERN_SIZE - 1);
@@ -253,10 +254,10 @@ static int create_target_list(TARGET **head, struct argp_state *state) {
         bzero(node->_target_name, NI_MAXHOST);
         bzero(node->_target_ip, INET_ADDRSTRLEN);
         strncpy(node->_target_name, state->argv[i], NI_MAXHOST - 1);
-        node->next = NULL;
+        node->_next = NULL;
 
         *tmp_head = node;
-        tmp_head = &node->next;
+        tmp_head = &node->_next;
     }
     return 0;
 }
